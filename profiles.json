@@ -1,0 +1,80 @@
+{
+  "web-user": {
+    "likes": [
+      "el futbol"
+    ],
+    "notes": [],
+    "lastEmotion": "ansioso",
+    "lastInteraction": "2026-04-09T00:21:37.102Z",
+    "history": [
+      {
+        "emotion": "feliz",
+        "time": "2026-04-08T22:16:21.704Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-08T22:16:39.726Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-08T22:49:57.197Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-08T23:05:14.636Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-04-08T23:05:43.157Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-08T23:06:07.388Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-08T23:30:47.044Z"
+      },
+      {
+        "emotion": "triste",
+        "time": "2026-04-08T23:31:56.601Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-08T23:32:24.485Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-09T00:19:09.787Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-09T00:20:47.820Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-09T00:21:37.102Z"
+      }
+    ]
+  },
+  "default-user": {
+    "likes": [],
+    "notes": [],
+    "lastEmotion": "ansioso",
+    "lastInteraction": "2026-04-09T23:44:58.284Z",
+    "history": [
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-09T14:49:25.799Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-09T16:02:22.430Z"
+      },
+      {
+        "emotion": "ansioso",
+        "time": "2026-04-09T23:44:58.284Z"
+      }
+    ]
+  }
+}

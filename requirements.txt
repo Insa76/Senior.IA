@@ -1,0 +1,15 @@
+setuptools>=68.0,<69.0
+packaging==21.3
+numpy==1.26.4
+protobuf>=4.25.3,<4.26.0
+pydantic>=2.6.4,<3.0.0
+sanic>=22.12,<23.0
+TTS==0.22.0
+rasa==3.6.15
+rasa-sdk
+flask
+pydub
+sqlalchemy<2.0
+transformers
+torch
+twilio

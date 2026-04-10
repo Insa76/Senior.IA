@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AcompañarIA - Tu amigo conversacional</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-container">
+        <img src="logo.jpeg" alt="AcompañarIA" class="logo" />
+      </div>
+      <h1>👋 Hola, soy AcompañarIA</h1>
+      <p>Estoy aquí para ayudarte con tu salud, medicamentos y compañía.</p>
+    </header>
+
+    <div id="chatBox" class="chat-box"></div>
+
+    <form id="chatForm">
+      <input 
+        type="text" 
+        id="messageInput" 
+        placeholder="Escribe tu mensaje..." 
+        autocomplete="off"
+      />
+      <button type="submit">Enviar</button>
+      <button id="voiceBtn" title="Hablar">🎤</button>
+    </form>
+
+    <footer>
+      <p>Siempre aquí para escucharte ❤️</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: nora-app
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start

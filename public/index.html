@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>NORA</title>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  background: #f2f4f8;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* HEADER */
+header {
+  background: #4a90e2;
+  color: white;
+  text-align: center;
+  padding: 20px;
+  font-size: 28px;
+}
+
+/* CHAT */
+#chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px;
+}
+
+/* MENSAJES */
+.msg {
+  margin: 12px 0;
+  padding: 18px;
+  border-radius: 16px;
+  max-width: 90%;
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+.user {
+  background: #4a90e2;
+  color: white;
+  margin-left: auto;
+}
+
+.bot {
+  background: #e0e0e0;
+  color: black;
+}
+
+/* CONTROLES */
+#controls {
+  padding: 10px;
+  background: white;
+  display: flex;
+  gap: 10px;
+}
+
+/* INPUT GRANDE */
+input {
+  flex: 1;
+  padding: 18px;
+  font-size: 20px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+}
+
+/* BOTONES GRANDES */
+button {
+  padding: 18px;
+  font-size: 20px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+/* BOTÓN ENVIAR */
+#sendBtn {
+  background: #4a90e2;
+  color: white;
+}
+
+/* BOTÓN VOZ */
+#voiceBtn {
+  background: #6c757d;
+  color: white;
+}
+
+/* BOTÓN EMERGENCIA */
+#emergencyBtn {
+  background: red;
+  color: white;
+  width: 100%;
+  margin: 10px 0;
+  font-size: 22px;
+}
+
+/* MÓVIL */
+@media (max-width: 600px) {
+
+  header {
+    font-size: 24px;
+    padding: 15px;
+  }
+
+  .msg {
+    font-size: 22px;
+  }
+
+  input {
+    font-size: 22px;
+  }
+
+  button {
+    font-size: 22px;
+  }
+
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  NORA 💙
+</header>
+
+<button onclick="toggleSimpleMode()" style="
+  width:100%;
+  padding:10px;
+  font-size:16px;
+  background:#333;
+  color:white;
+">
+  Modo simple
+</button>
+
+<div id="simpleMode" style="display:none; padding:20px;">
+
+  <button onclick="startVoice()" style="
+    width:100%;
+    padding:25px;
+    font-size:24px;
+    margin-bottom:15px;
+  ">
+    <i data-lucide="mic"></i> Hablar
+  </button>
+
+  <button onclick="feelingBad()" style="
+    width:100%;
+    padding:25px;
+    font-size:24px;
+    margin-bottom:15px;
+    background:#ff9800;
+    color:white;
+  ">
+    😔 No me siento bien
+  </button>
+
+  <button onclick="emergency()" style="
+    width:100%;
+    padding:25px;
+    font-size:26px;
+    background:red;
+    color:white;
+  ">
+    <i data-lucide="alert-triangle"></i> Necesito ayuda
+  </button>
+
+</div>
+
+<div id="normalMode">
+
+<button id="emergencyBtn" onclick="emergency()">
+  <i data-lucide="alert-triangle"></i> Necesito ayuda
+</button>
+
+<button id="badBtn" onclick="feelingBad()" style="
+  background:#ff9800;
+  color:white;
+  width:100%;
+  margin-bottom:10px;
+  font-size:20px;
+">
+  😔 No me siento bien
+</button>
+
+<div id="chat"></div>
+
+<div id="controls">
+  <input id="text" placeholder="Escribí o decí algo..." />
+  <button id="sendBtn" onclick="send()">
+  <i data-lucide="send"></i>
+</button>
+  <button onclick="startVoice()">
+  <i data-lucide="mic"></i>
+</button>
+</div>
+</div>
+
+<script>
+let inactivityTimer;
+
+function resetTimer() {
+  clearTimeout(inactivityTimer);
+
+  inactivityTimer = setTimeout(() => {
+    triggerProactiveMessage();
+  }, 15000);
+}
+
+function getUserId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("userId") || "default-user";
+}
+
+async function triggerProactiveMessage() {
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        userId: getUserId(),
+        message: "iniciar conversación"
+      })
+    });
+
+    const data = await res.json();
+    addMessage(data.reply, "bot");
+    speak(data.reply);
+
+  } catch {
+    addMessage("¿Seguís ahí? 😊", "bot");
+  }
+}
+
+async function send() {
+  const input = document.getElementById("text");
+  const message = input.value.trim();
+
+  if (!message) return;
+
+  addMessage(message, "user");
+  input.value = "";
+
+  resetTimer();
+
+  addMessage("Escribiendo...", "bot");
+
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        userId: getUserId(),
+        message
+      })
+    });
+
+    const data = await res.json();
+
+    const chat = document.getElementById("chat");
+    chat.removeChild(chat.lastChild);
+
+    addMessage(data.reply, "bot");
+
+  } catch {
+    addMessage("Estoy teniendo un problema técnico...", "bot");
+  }
+}
+
+async function emergency() {
+  addMessage("Necesito ayuda", "user");
+
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        userId: getUserId(),
+        message: "emergencia"
+      })
+    });
+
+    const data = await res.json();
+    addMessage(data.reply, "bot");
+
+  } catch {
+    addMessage("Error al pedir ayuda", "bot");
+  }
+}
+
+async function feelingBad() {
+
+  addMessage("No me siento bien", "user");
+
+  addMessage("Escribiendo...", "bot");
+
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        userId: getUserId(),
+        message: "me siento mal"
+      })
+    });
+
+    const data = await res.json();
+
+    const chat = document.getElementById("chat");
+    chat.removeChild(chat.lastChild);
+
+    addMessage(data.reply, "bot");
+    speak(data.reply);
+
+  } catch {
+    addMessage("Estoy teniendo un problema técnico...", "bot");
+  }
+}
+
+function addMessage(text, type) {
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  div.innerText = text;
+
+  document.getElementById("chat").appendChild(div);
+  div.scrollIntoView();
+}
+
+function startVoice() {
+  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+
+  recognition.lang = "es-ES";
+  recognition.start();
+
+  recognition.onresult = function(event) {
+    const text = event.results[0][0].transcript;
+    document.getElementById("text").value = text;
+    send();
+  };
+
+  recognition.onerror = function() {
+    addMessage("No pude escucharte bien 😕", "bot");
+  };
+}
+
+function showNotification(text) {
+  if (Notification.permission === "granted") {
+    new Notification("NORA", {
+      body: text,
+      icon: "/icon.png"
+    });
+  }
+}
+
+function playSound() {
+  const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
+  audio.play();
+}
+
+
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js");
+}
+
+// =====================
+// ESCUCHAR FOLLOW-UP
+// =====================
+setInterval(async () => {
+  try {
+    const res = await fetch(`/follow-up/${getUserId()}`);
+    const data = await res.json();
+
+    data.messages.forEach(msg => {
+      addMessage(msg, "bot");
+      speak(msg);
+    });
+
+  } catch {}
+}, 5000); // cada 5 segundos
+
+// =====================
+// VOZ DE RESPUESTA
+// =====================
+function speak(text) {
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "es-ES";
+  speechSynthesis.speak(utterance);
+}
+
+let simple = false;
+
+function toggleSimpleMode() {
+  simple = !simple;
+
+  document.getElementById("simpleMode").style.display = simple ? "block" : "none";
+  document.getElementById("normalMode").style.display = simple ? "none" : "block";
+}
+
+document.getElementById("text").addEventListener("keypress", function(e) {
+  if (e.key === "Enter") send();
+});
+
+// =====================
+// ESCUCHAR RECORDATORIOS
+// =====================
+setInterval(async () => {
+  try {
+    const res = await fetch(`/reminders/${getUserId()}`);
+    const data = await res.json();
+
+    data.messages.forEach(msg => {
+      addMessage(msg, "bot");
+      speak(msg);
+    });
+
+  } catch {}
+}, 5000);
+
+async function requestNotificationPermission() {
+  if ("Notification" in window) {
+    const permission = await Notification.requestPermission();
+    console.log("Permiso:", permission);
+  }
+}
+
+// pedir permiso al cargar
+requestNotificationPermission();
+
+resetTimer();
+lucide.createIcons();
+</script>
+
+</body>
+</html>

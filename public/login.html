@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Ingreso</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #f2f4f8;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      height: 100vh;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    input {
+      padding: 15px;
+      font-size: 20px;
+      margin: 10px 0;
+      border-radius: 10px;
+      border: 1px solid #ccc;
+    }
+
+    button {
+      padding: 15px;
+      font-size: 20px;
+      border: none;
+      border-radius: 10px;
+      background: #4a90e2;
+      color: white;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>Ingresar</h1>
+
+<input id="userId" placeholder="Nombre del usuario (ej: juan)" />
+
+<button onclick="login()">Entrar</button>
+
+<script>
+function login() {
+  const userId = document.getElementById("userId").value.trim();
+
+  if (!userId) {
+    alert("Ingresá un nombre");
+    return;
+  }
+
+  // redirige al panel familiar
+  window.location.href = `/family.html?userId=${userId}`;
+}
+</script>
+
+</body>
+</html>
