@@ -6,8 +6,9 @@
     "start": "node server.cjs"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "axios": "^1.15.0",
     "cors": "^2.8.5",
-    "axios": "^1.6.0"
+    "dotenv": "^17.4.1",
+    "express": "^4.19.2"
   }
 }

@@ -60,8 +60,8 @@
   "default-user": {
     "likes": [],
     "notes": [],
-    "lastEmotion": "ansioso",
-    "lastInteraction": "2026-04-09T23:44:58.284Z",
+    "lastEmotion": "la emoción correspondiente a la frase \"iniciar conversación\" es: ansioso.",
+    "lastInteraction": "2026-04-10T21:05:28.232Z",
     "history": [
       {
         "emotion": "ansioso",
@@ -74,6 +74,62 @@
       {
         "emotion": "ansioso",
         "time": "2026-04-09T23:44:58.284Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T20:54:52.667Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T20:55:09.518Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T20:57:34.750Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T20:57:50.090Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T20:59:18.828Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T20:59:34.030Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T21:01:59.025Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T21:02:13.808Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T21:03:36.364Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T21:03:43.517Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-04-10T21:03:58.535Z"
+      },
+      {
+        "emotion": "la emoción que se puede clasificar en una palabra para este mensaje es: neutral.\n\nel mensaje \"hola\" es una expresión de saludo y no connota una emoción en particular, ni positiva ni negativa. es un saludo formal o informal que se utiliza para iniciar una conversación.",
+        "time": "2026-04-10T21:05:07.064Z"
+      },
+      {
+        "emotion": "la emoción correspondiente al mensaje \"hola\" sería \"neutral\".",
+        "time": "2026-04-10T21:05:13.409Z"
+      },
+      {
+        "emotion": "la emoción correspondiente a la frase \"iniciar conversación\" es: ansioso.",
+        "time": "2026-04-10T21:05:28.232Z"
       }
     ]
   }

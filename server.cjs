@@ -2,7 +2,9 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 
-const askOllama = require("./ollamaService");
+require("dotenv").config();
+
+const askGroq = require("./groqService");
 const detectEmotionAI = require("./emotionService");
 
 const {
@@ -25,6 +27,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+
+
 
 const BASE_PROMPT = `
 Te llamás NORA.
@@ -239,7 +243,7 @@ Usuario: ${message}
 Asistente:
 `;
 
-    const response = await askOllama(prompt);
+    const response = await askGroq(prompt);
 
     res.json({ reply: response });
 
