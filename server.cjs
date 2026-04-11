@@ -18,6 +18,7 @@ const sendAlert = require("./alertService");
 const { scheduleFollowUp, getFollowUps } = require("./followUpService");
 const analyzeRisk = require("./alertLogic");
 const { addReminder, checkReminders } = require("./reminderService");
+const { saveMessage, getChat } = require("./memory");
 
 const webpush = require("web-push");
 
@@ -130,6 +131,8 @@ app.post("/chat", async (req, res) => {
   const msg = message.toLowerCase();
   const now = new Date();
 
+  saveMessage(userId, "user", message);
+
   // 🚨 EMERGENCIA
   if (detectEmergency(message)) {
     await sendAlert(`Emergencia: ${message}`);
@@ -198,14 +201,16 @@ app.post("/chat", async (req, res) => {
     // 🧠 PROMPT
     // =====================
     const prompt = `
-${BASE_PROMPT}
-${STYLE_RULES}
+     ${BASE_PROMPT}
+     ${STYLE_RULES}
 
-Usuario: ${message}
-Asistente:
-`;
+     Usuario: ${message}
+     Asistente:
+     `;
 
     const response = await askGroq(prompt);
+
+    saveMessage(userId, "bot", response);
 
     res.json({ reply: response });
 
@@ -213,6 +218,10 @@ Asistente:
     console.error(err);
     res.status(500).json({ error: "Error IA" });
   }
+});
+
+app.get("/chat-history/:userId", (req, res) => {
+  res.json({ chat: getChat(req.params.userId) });
 });
 
 // =====================

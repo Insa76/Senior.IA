@@ -211,10 +211,16 @@ button {
 <script>
 (function () {
   const params = new URLSearchParams(window.location.search);
-  const userId = params.get("userId");
+  let userId = params.get("userId");
 
   if (!userId) {
-    window.location.href = "/login.html";
+    userId = localStorage.getItem("userId");
+
+    if (userId) {
+      window.location.href = `/?userId=${userId}`;
+    } else {
+      window.location.href = "/login.html";
+    }
   }
 })();
 
@@ -335,6 +341,20 @@ async function feelingBad() {
 
   } catch {
     addMessage("Estoy teniendo un problema técnico...", "bot");
+  }
+}
+
+async function loadChat() {
+  try {
+    const res = await fetch(`/chat-history/${getUserId()}`);
+    const data = await res.json();
+
+    data.chat.forEach(msg => {
+      addMessage(msg.text, msg.role === "user" ? "user" : "bot");
+    });
+
+  } catch (err) {
+    console.log("Error cargando chat");
   }
 }
 
@@ -539,6 +559,9 @@ function showNotification(text) {
 
 resetTimer();
 lucide.createIcons();
+window.addEventListener("load", () => {
+  loadChat();
+});
 </script>
 
 </body>

@@ -97,6 +97,27 @@ function getReminders(userId) {
   return data[userId]?.reminders || [];
 }
 
+const chats = {};
+
+function saveMessage(userId, role, text) {
+  if (!chats[userId]) chats[userId] = [];
+
+  chats[userId].push({
+    role,
+    text,
+    time: new Date()
+  });
+}
+
+function getChat(userId) {
+  return chats[userId] || [];
+}
+
+module.exports = {
+  saveMessage,
+  getChat
+};
+
 module.exports.saveReminder = saveReminder;
 module.exports.getReminders = getReminders;
 

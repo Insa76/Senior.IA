@@ -94,12 +94,11 @@ button {
 function login() {
   const userId = document.getElementById("userId").value.trim();
 
-  if (!userId) {
-    alert("Ingresá un nombre");
-    return;
-  }
+  if (!userId) return alert("Ingresá un nombre");
 
-  // 👉 esto es lo correcto
+  // 💾 guardar
+  localStorage.setItem("userId", userId);
+
   window.location.href = `/?userId=${userId}`;
 }
 
