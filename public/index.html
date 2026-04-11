@@ -191,6 +191,10 @@ button {
   😔 No me siento bien
 </button>
 
+<button id="soundBtn" onclick="toggleSound()">
+  🔊 Sonido ON
+</button>
+
 <div id="chat"></div>
 
 <div id="controls">
@@ -205,6 +209,15 @@ button {
 </div>
 
 <script>
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const userId = params.get("userId");
+
+  if (!userId) {
+    window.location.href = "/login.html";
+  }
+})();
+
 let inactivityTimer;
 
 function resetTimer() {
@@ -388,14 +401,81 @@ setInterval(async () => {
 }, 5000); // cada 5 segundos
 
 // =====================
-// VOZ DE RESPUESTA
+// 🔊 CONFIG SONIDO
 // =====================
-function speak(text) {
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "es-ES";
-  speechSynthesis.speak(utterance);
+let soundEnabled = localStorage.getItem("sound") !== "off";
+
+// =====================
+// 🧠 LIMPIAR TEXTO
+// =====================
+function cleanText(text) {
+  return text.replace(/\(.*?\)/g, "").trim();
 }
 
+// =====================
+// 🔊 HABLAR
+// =====================
+function speak(text) {
+  if (!soundEnabled) return;
+
+  // 🧠 limpiar texto (sin paréntesis)
+  const cleaned = text.replace(/\(.*?\)/g, "").trim();
+
+  // ✂️ dividir en frases para sonar más natural
+  const parts = cleaned.split(/[.,!?]/).filter(p => p.trim() !== "");
+
+  // 🎤 obtener voces
+  const voices = speechSynthesis.getVoices();
+
+  const preferredVoice =
+    voices.find(v => v.lang.includes("es") && v.name.toLowerCase().includes("google")) ||
+    voices.find(v => v.lang.includes("es")) ||
+    voices[0];
+
+  // 🗣️ función para hablar cada parte
+  parts.forEach((part, index) => {
+
+    const utterance = new SpeechSynthesisUtterance(part.trim());
+
+    utterance.lang = "es-ES";
+
+    // 🐢 velocidad ideal para adultos mayores
+    utterance.rate = 0.9;
+
+    // 🎵 tono natural
+    utterance.pitch = 1;
+
+    // 🔊 volumen
+    utterance.volume = 1;
+
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
+    // ⏱️ delay entre frases (clave para naturalidad)
+    setTimeout(() => {
+      speechSynthesis.speak(utterance);
+    }, index * 700);
+  });
+}
+
+// =====================
+// 🔘 TOGGLE SONIDO
+// =====================
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+
+  localStorage.setItem("sound", soundEnabled ? "on" : "off");
+
+  const btn = document.getElementById("soundBtn");
+  if (btn) {
+    btn.innerText = soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+  }
+}
+
+// =====================
+// 🧠 MODO SIMPLE
+// =====================
 let simple = false;
 
 function toggleSimpleMode() {
@@ -405,8 +485,21 @@ function toggleSimpleMode() {
   document.getElementById("normalMode").style.display = simple ? "none" : "block";
 }
 
+// =====================
+// ⌨️ ENTER PARA ENVIAR
+// =====================
 document.getElementById("text").addEventListener("keypress", function(e) {
   if (e.key === "Enter") send();
+});
+
+// =====================
+// 🔄 INIT BOTÓN SONIDO
+// =====================
+window.addEventListener("load", () => {
+  const btn = document.getElementById("soundBtn");
+  if (btn) {
+    btn.innerText = soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+  }
 });
 
 // =====================
@@ -417,23 +510,32 @@ setInterval(async () => {
     const res = await fetch(`/reminders/${getUserId()}`);
     const data = await res.json();
 
-    data.messages.forEach(msg => {
-      addMessage(msg, "bot");
-      speak(msg);
+    data.reminders.forEach(r => {
+      addMessage("🔔 " + r.text, "bot");
+      speak(r.text);
+      showNotification(r.text);
     });
 
   } catch {}
 }, 5000);
 
 async function requestNotificationPermission() {
-  if ("Notification" in window) {
-    const permission = await Notification.requestPermission();
-    console.log("Permiso:", permission);
+  const permission = await Notification.requestPermission();
+
+  if (permission === "granted") {
+    console.log("Notificaciones activadas");
   }
 }
 
-// pedir permiso al cargar
 requestNotificationPermission();
+
+function showNotification(text) {
+  if (Notification.permission === "granted") {
+    new Notification("NORA", {
+      body: text
+    });
+  }
+}
 
 resetTimer();
 lucide.createIcons();

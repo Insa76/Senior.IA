@@ -1,4 +1,4 @@
-const askOllama = require("./ollamaService");
+const askGroq = require("./groqService");
 
 const activeFollowUps = {};
 const followUpMessages = {};
@@ -21,7 +21,7 @@ ${profile.lastEmotion}
 Escribí un mensaje corto y humano preguntando cómo está ahora.
 `;
 
-      const message = await askOllama(prompt);
+      const message = await askGroq(prompt);
 
       console.log("📩 FOLLOW-UP:", message);
 
@@ -40,14 +40,12 @@ Escribí un mensaje corto y humano preguntando cómo está ahora.
   }, 60000);
 }
 
-// 👇 ESTA ES LA CLAVE QUE TE FALTABA
 function getFollowUps(userId) {
   const messages = followUpMessages[userId] || [];
   followUpMessages[userId] = [];
   return messages;
 }
 
-// ✅ EXPORT CORRECTO
 module.exports = {
   scheduleFollowUp,
   getFollowUps

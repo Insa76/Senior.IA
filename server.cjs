@@ -1,7 +1,6 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-
 require("dotenv").config();
 
 const askGroq = require("./groqService");
@@ -18,226 +17,189 @@ const detectEmergency = require("./emergencyService");
 const sendAlert = require("./alertService");
 const { scheduleFollowUp, getFollowUps } = require("./followUpService");
 const analyzeRisk = require("./alertLogic");
-const extractReminder = require("./reminderService");
-const { saveReminder } = require("./memory");
-const { startReminderEngine, getRemindersForUser } = require("./reminderEngine");
+const { addReminder, checkReminders } = require("./reminderService");
 
+const webpush = require("web-push");
 
+// =====================
+// 🔔 CONFIG PUSH
+// =====================
+webpush.setVapidDetails(
+  "mailto:tu@email.com",
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
+const subscriptions = [];
+
+// =====================
+// 🚀 APP
+// =====================
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-
-
+// =====================
+// 🧠 PROMPT BASE
+// =====================
 const BASE_PROMPT = `
 Te llamás NORA.
+Sos un asistente para acompañar personas mayores.
 
-Sos un asistente diseñado para acompañar a personas mayores.
-
-Tu personalidad es:
 - cálida
 - paciente
 - cercana
-- respetuosa
-
-Tu forma de hablar:
-- simple
 - clara
-- frases cortas
-- tono humano
 
-Reglas:
-- nunca digas que sos una IA
-- nunca uses lenguaje técnico
-- no seas infantil
-- respondé como una persona real
-- podés hacer preguntas suaves
-- generá confianza
-
-Tu objetivo:
-- acompañar
-- escuchar
-- conversar
-- hacer sentir bien al usuario
+Nunca digas que sos una IA.
 `;
 
 const STYLE_RULES = `
-Reglas importantes:
-- hablá siempre en el mismo tono
-- no cambies de personalidad
-- mantené coherencia emocional
+- hablá simple
+- tono humano
+- frases cortas
 `;
 
 // =====================
-// 🔥 ENDPOINT FOLLOW-UP
+// 🔁 FOLLOW UP
 // =====================
 app.get("/follow-up/:userId", (req, res) => {
-  const messages = getFollowUps(req.params.userId);
-  res.json({ messages });
+  res.json({ messages: getFollowUps(req.params.userId) });
 });
 
 // =====================
-// 🔥 ENDPOINT PANEL FAMILIAR
+// 👨‍👩‍👧 PANEL
 // =====================
 app.get("/family/:userId", (req, res) => {
-  const userId = req.params.userId;
-  const profile = getProfile(userId);
+  const profile = getProfile(req.params.userId);
 
   const risk = analyzeRisk(profile.history || []);
 
-let status = "normal";
-
-if (risk === "medio") {
-  status = "atencion";
-}
-
-if (risk === "alto") {
-  status = "urgente";
-}
+  let status = "normal";
+  if (risk === "medio") status = "atencion";
+  if (risk === "alto") status = "urgente";
 
   res.json({
-  name: profile.name || "Usuario",
-  emotion: profile.lastEmotion || "desconocido",
-  lastInteraction: profile.lastInteraction || "sin datos",
-  likes: profile.likes || [],
-  status,
-  history: profile.history || []
-});
+    name: profile.name || "Usuario",
+    emotion: profile.lastEmotion || "desconocido",
+    lastInteraction: profile.lastInteraction || "sin datos",
+    likes: profile.likes || [],
+    history: profile.history || [],
+    status
+  });
 });
 
 // =====================
-// 💬 ENDPOINT CHAT
+// 🔔 RECORDATORIOS
+// =====================
+app.get("/reminders/:userId", (req, res) => {
+  const list = checkReminders().filter(r => r.userId === req.params.userId);
+
+  // 🔔 enviar push también
+  list.forEach(r => sendPush(r.text));
+
+  res.json({ reminders: list });
+});
+
+// =====================
+// 📩 SUSCRIPCIÓN PUSH
+// =====================
+app.post("/subscribe", (req, res) => {
+  subscriptions.push(req.body);
+  res.status(201).json({});
+});
+
+// =====================
+// 🔔 ENVIAR PUSH
+// =====================
+function sendPush(message) {
+  subscriptions.forEach(sub => {
+    webpush.sendNotification(sub, JSON.stringify({
+      title: "NORA",
+      body: message
+    })).catch(console.error);
+  });
+}
+
+// =====================
+// 💬 CHAT
 // =====================
 app.post("/chat", async (req, res) => {
   const { userId, message } = req.body;
+  const msg = message.toLowerCase();
+  const now = new Date();
 
-  const lower = message.toLowerCase();
-
-  // =====================
   // 🚨 EMERGENCIA
-  // =====================
   if (detectEmergency(message)) {
-    await sendAlert(`Posible emergencia detectada: ${message}`);
+    await sendAlert(`Emergencia: ${message}`);
 
     return res.json({
-      reply:
-        "Estoy con vos. Ya avisé a un contacto de confianza. Tratá de mantener la calma. ¿Querés que te guíe?",
-    });
-  }
-
-  // =====================
-  // ✅ CONFIRMACIÓN MEDICACIÓN
-  // =====================
-  if (lower.includes("sí") || lower.includes("ya")) {
-    confirmMedication(userId, message);
-
-    return res.json({
-      reply: "Perfecto 👍 Me alegra que lo hayas tomado.",
+      reply: "Estoy con vos. Ya avisé a alguien de confianza."
     });
   }
 
   try {
-    // =====================
-    // PERFIL
-    // =====================
     let profile = getProfile(userId);
-
     profile = extractUserInfo(message, profile);
     saveProfile(userId, profile);
 
     // =====================
-    // RECORDATORIOS
+    // 🔔 RECORDATORIOS INTELIGENTES
     // =====================
-    const reminder = extractReminder(message);
+    if (msg.includes("recordame")) {
 
-    if (reminder) {
-      reminder.times.forEach((time) => {
-        saveReminder(userId, {
-          time,
-          medicine: reminder.medicine,
-        });
-      });
+      let time = new Date();
+      let repeat = null;
+
+      // minutos
+      const min = msg.match(/en (\d+) minutos/);
+      if (min) {
+        time = new Date(now.getTime() + parseInt(min[1]) * 60000);
+      }
+
+      // hora
+      const hour = msg.match(/a las (\d{1,2})/);
+      if (hour) {
+        time.setHours(parseInt(hour[1]));
+        time.setMinutes(0);
+        time.setSeconds(0);
+      }
+
+      // mañana
+      if (msg.includes("mañana")) {
+        time.setDate(time.getDate() + 1);
+      }
+
+      // diario
+      if (msg.includes("todos los días") || msg.includes("todos los dias")) {
+        repeat = "daily";
+      }
+
+      addReminder(userId, message, time, repeat);
 
       return res.json({
-        reply: `Perfecto, voy a recordarte tomar ${reminder.medicine}.`,
+        reply: "Perfecto, ya lo agendé 👍"
       });
     }
 
     // =====================
-    // EMOCIÓN
+    // 😊 EMOCIÓN
     // =====================
     const emotion = await detectEmotionAI(message);
 
-    let emotionContext = "";
-
-    if (emotion.includes("triste")) {
-      emotionContext =
-        "El usuario está triste. Respondé con mucha empatía.";
-    }
-    if (emotion.includes("aburrido")) {
-      emotionContext =
-        "El usuario está aburrido. Proponé algo.";
-    }
-    if (emotion.includes("ansioso")) {
-      emotionContext =
-        "El usuario está ansioso. Respondé con calma.";
-    }
-
     saveEmotion(userId, emotion);
 
-    if (
-      emotion.includes("triste") ||
-      emotion.includes("ansioso")
-    ) {
+    if (emotion.includes("triste") || emotion.includes("ansioso")) {
       scheduleFollowUp(userId, profile);
     }
 
-    const emotionalMemory = `
-Estado emocional previo: ${profile.lastEmotion || "desconocido"}
-`;
-
     // =====================
-    // NORMALIZAR DATOS
-    // =====================
-    const safeLikes = Array.isArray(profile.likes)
-      ? profile.likes
-      : profile.likes
-      ? [profile.likes]
-      : [];
-
-    const safeNotes = Array.isArray(profile.notes)
-      ? profile.notes
-      : profile.notes
-      ? [profile.notes]
-      : [];
-
-    const profileSummary = `
-Nombre: ${profile.name || "no especificado"}
-Le gusta: ${safeLikes.join(", ")}
-Situación: ${profile.living || ""}
-Notas: ${safeNotes.join(", ")}
-`;
-
-    // =====================
-    // PROMPT IA
+    // 🧠 PROMPT
     // =====================
     const prompt = `
 ${BASE_PROMPT}
-
 ${STYLE_RULES}
-
-Información del usuario:
-${profileSummary}
-
-Contexto emocional:
-${emotionContext}
-${emotionalMemory}
-
-Reglas importantes:
-- usá la información del usuario si existe
-- si está triste o solo, sugerí algo basado en sus gustos
-- hablá como alguien cercano
 
 Usuario: ${message}
 Asistente:
@@ -252,13 +214,6 @@ Asistente:
     res.status(500).json({ error: "Error IA" });
   }
 });
-
-app.get("/reminders/:userId", (req, res) => {
-  const messages = getRemindersForUser(req.params.userId);
-  res.json({ messages });
-});
-
-startReminderEngine();
 
 // =====================
 app.listen(3000, () => {

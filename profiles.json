@@ -60,13 +60,9 @@
   "default-user": {
     "likes": [],
     "notes": [],
-    "lastEmotion": "la emoción correspondiente a la frase \"iniciar conversación\" es: ansioso.",
-    "lastInteraction": "2026-04-10T21:05:28.232Z",
+    "lastEmotion": "la emoción asociada a la frase \"iniciar conversación\" es... neutral.",
+    "lastInteraction": "2026-04-10T21:50:25.167Z",
     "history": [
-      {
-        "emotion": "ansioso",
-        "time": "2026-04-09T14:49:25.799Z"
-      },
       {
         "emotion": "ansioso",
         "time": "2026-04-09T16:02:22.430Z"
@@ -130,6 +126,46 @@
       {
         "emotion": "la emoción correspondiente a la frase \"iniciar conversación\" es: ansioso.",
         "time": "2026-04-10T21:05:28.232Z"
+      },
+      {
+        "emotion": "la emoción asociada con el mensaje \"iniciar conversación\" es:\n\n**ansioso**",
+        "time": "2026-04-10T21:39:29.903Z"
+      },
+      {
+        "emotion": "la emoción que se asocia con el mensaje \"iniciar conversación\" es: feliz",
+        "time": "2026-04-10T21:41:21.230Z"
+      },
+      {
+        "emotion": "la emoción que más se ajusta a la intención de \"iniciar conversación\" es: ansioso\n\nla ansiedad a menudo es una emoción que impulsa a las personas a tomar acción y interactuar con otros, lo que en este caso se traduce en iniciar una conversación.",
+        "time": "2026-04-10T21:42:22.405Z"
+      },
+      {
+        "emotion": "la emoción asociada a la frase \"iniciar conversación\" es... neutral.",
+        "time": "2026-04-10T21:50:25.167Z"
+      }
+    ]
+  },
+  "juan": {
+    "likes": [],
+    "notes": [],
+    "lastEmotion": "la clasificación de emociones en una palabra para cada una de las opciones es:\n\n- feliz: contento\n- triste: tristeza\n- ansioso: inquietud\n- aburrido: fastidio\n- neutral: indiferencia",
+    "lastInteraction": "2026-04-11T01:17:14.862Z",
+    "history": [
+      {
+        "emotion": "clasificaré cada emoción en una palabra:\n\n1. feliz - alegre\n2. triste - melancólico\n3. ansioso - tenso\n4. aburrido - tedioso\n5. neutral - desapasionado\n\nno hay una emoción asociada directamente con el mensaje de \"iniciar conversación\", pero si consideramos una emoción que podría ser apropiada para comenzar una conversación, sería:\n\n- alegre (1. feliz)",
+        "time": "2026-04-10T22:01:26.916Z"
+      },
+      {
+        "emotion": "basado en el mensaje \"iniciar conversación\", te diría que el estado emocional apropiado es: neutral\n\nla razón es que \"iniciar conversación\" es una acción neutra, sin carga emocional específica. estás simplemente estableciendo una conexión con alguien, sin sentir una emoción intensa como felicidad, tristeza, ansiedad o aburrimiento.",
+        "time": "2026-04-11T00:49:32.841Z"
+      },
+      {
+        "emotion": "la emoción que mejor clasificaría a esta situación es: \"ansioso\".\n\nla razón es que iniciar una conversación puede ser un poco intimidante, especialmente si se está tratando de abordar a alguien que no conocemos bien o si estamos nerviosos por hablar sobre un tema determinado. esto puede generar sentimientos de ansiedad y aprensión, lo que lleva a la emoción de ansioso.",
+        "time": "2026-04-11T01:16:48.555Z"
+      },
+      {
+        "emotion": "la clasificación de emociones en una palabra para cada una de las opciones es:\n\n- feliz: contento\n- triste: tristeza\n- ansioso: inquietud\n- aburrido: fastidio\n- neutral: indiferencia",
+        "time": "2026-04-11T01:17:14.862Z"
       }
     ]
   }

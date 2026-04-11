@@ -46,6 +46,12 @@
 
 <button onclick="login()">Entrar</button>
 
+<button onclick="generateUser()">Generar usuario</button>
+
+<button onclick="goFamily()">Ver panel familiar</button>
+
+<div id="generatedId" style="margin-top:10px; font-size:18px;"></div>
+
 <script>
 function login() {
   const userId = document.getElementById("userId").value.trim();
@@ -55,7 +61,23 @@ function login() {
     return;
   }
 
-  // redirige al panel familiar
+  // 👉 esto es lo correcto
+  window.location.href = `/?userId=${userId}`;
+}
+
+function generateUser() {
+  const id = "user-" + Math.floor(Math.random() * 100000);
+
+  document.getElementById("userId").value = id;
+
+  document.getElementById("generatedId").innerText =
+    "ID generado: " + id;
+}
+
+function goFamily() {
+  const userId = document.getElementById("userId").value.trim();
+  if (!userId) return alert("Ingresá un nombre");
+
   window.location.href = `/family.html?userId=${userId}`;
 }
 </script>

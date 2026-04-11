@@ -1,30 +1,36 @@
-function extractReminder(text) {
-  text = text.toLowerCase();
+const reminders = [];
 
-  if (!text.includes("pastilla") && !text.includes("medicación") && !text.includes("tomo")) {
-    return null;
-  }
-
-  // 🔥 detectar horarios
-  const matches = text.match(/\d{1,2}/g);
-  if (!matches) return null;
-
-  // 🔥 intentar detectar medicamento
-  let medicine = "tu medicación";
-
-  const words = text.split(" ");
-
-  const tomoIndex = words.indexOf("tomo");
-
-  if (tomoIndex !== -1 && words[tomoIndex + 1]) {
-    medicine = words[tomoIndex + 1];
-  }
-
-  return {
-    times: matches.map(t => parseInt(t)),
-    medicine,
-    text
-  };
+function addReminder(userId, text, time, repeat = null) {
+  reminders.push({
+    userId,
+    text,
+    time: new Date(time),
+    repeat, // "daily" o null
+    done: false
+  });
 }
 
-module.exports = extractReminder;
+function checkReminders() {
+  const now = new Date();
+  const triggered = [];
+
+  reminders.forEach(r => {
+    if (!r.done && now >= r.time) {
+      triggered.push(r);
+
+      if (r.repeat === "daily") {
+        // repetir al día siguiente
+        r.time.setDate(r.time.getDate() + 1);
+      } else {
+        r.done = true;
+      }
+    }
+  });
+
+  return triggered;
+}
+
+module.exports = {
+  addReminder,
+  checkReminders
+};
