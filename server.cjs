@@ -144,6 +144,9 @@ app.post("/chat", async (req, res) => {
 
   try {
     let profile = getProfile(userId);
+    if (!profile.name) {
+      profile.name = userId;
+     }
     profile = extractUserInfo(message, profile);
     saveProfile(userId, profile);
 
@@ -204,9 +207,14 @@ app.post("/chat", async (req, res) => {
      ${BASE_PROMPT}
      ${STYLE_RULES}
 
-     Usuario: ${message}
-     Asistente:
-     `;
+     Nombre del usuario: ${profile.name}
+
+      Regla importante:
+      - si sabés el nombre, usalo de forma natural (no en todas las frases)
+
+      Usuario: ${message}
+      Asistente:
+      `;
 
     const response = await askGroq(prompt);
 

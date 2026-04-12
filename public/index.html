@@ -209,6 +209,10 @@ button {
 </div>
 
 <script>
+
+// =====================
+// 🔐 USER AUTO LOGIN
+// =====================
 (function () {
   const params = new URLSearchParams(window.location.search);
   let userId = params.get("userId");
@@ -224,6 +228,22 @@ button {
   }
 })();
 
+// =====================
+// 🔊 CONFIG SONIDO
+// =====================
+let soundEnabled = localStorage.getItem("sound") !== "off";
+
+// =====================
+// 🧠 UTIL
+// =====================
+function getUserId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("userId") || "default-user";
+}
+
+// =====================
+// ⏱️ INACTIVIDAD
+// =====================
 let inactivityTimer;
 
 function resetTimer() {
@@ -234,11 +254,9 @@ function resetTimer() {
   }, 15000);
 }
 
-function getUserId() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("userId") || "default-user";
-}
-
+// =====================
+// 💬 PROACTIVO
+// =====================
 async function triggerProactiveMessage() {
   try {
     const res = await fetch("/chat", {
@@ -259,6 +277,69 @@ async function triggerProactiveMessage() {
   }
 }
 
+// =====================
+// 💬 MENSAJES
+// =====================
+function addMessage(text, type) {
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  div.innerText = text;
+
+  document.getElementById("chat").appendChild(div);
+  div.scrollIntoView();
+}
+
+// =====================
+// 🔊 HABLAR NATURAL
+// =====================
+function speak(text) {
+  if (!soundEnabled) return;
+
+  const cleaned = text.replace(/\(.*?\)/g, "").trim();
+
+  const parts = cleaned.split(/[.,!?]/).filter(p => p.trim() !== "");
+
+  const voices = speechSynthesis.getVoices();
+
+  const preferredVoice =
+    voices.find(v => v.lang.includes("es") && v.name.toLowerCase().includes("google")) ||
+    voices.find(v => v.lang.includes("es")) ||
+    voices[0];
+
+  parts.forEach((part, index) => {
+
+    const utterance = new SpeechSynthesisUtterance(part.trim());
+
+    utterance.lang = "es-ES";
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+    }
+
+    setTimeout(() => {
+      speechSynthesis.speak(utterance);
+    }, index * 700);
+  });
+}
+
+// =====================
+// 🔘 SONIDO
+// =====================
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+
+  localStorage.setItem("sound", soundEnabled ? "on" : "off");
+
+  document.getElementById("soundBtn").innerText =
+    soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+}
+
+// =====================
+// 💬 CHAT
+// =====================
 async function send() {
   const input = document.getElementById("text");
   const message = input.value.trim();
@@ -288,85 +369,61 @@ async function send() {
     chat.removeChild(chat.lastChild);
 
     addMessage(data.reply, "bot");
-
-  } catch {
-    addMessage("Estoy teniendo un problema técnico...", "bot");
-  }
-}
-
-async function emergency() {
-  addMessage("Necesito ayuda", "user");
-
-  try {
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        userId: getUserId(),
-        message: "emergencia"
-      })
-    });
-
-    const data = await res.json();
-    addMessage(data.reply, "bot");
-
-  } catch {
-    addMessage("Error al pedir ayuda", "bot");
-  }
-}
-
-async function feelingBad() {
-
-  addMessage("No me siento bien", "user");
-
-  addMessage("Escribiendo...", "bot");
-
-  try {
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        userId: getUserId(),
-        message: "me siento mal"
-      })
-    });
-
-    const data = await res.json();
-
-    const chat = document.getElementById("chat");
-    chat.removeChild(chat.lastChild);
-
-    addMessage(data.reply, "bot");
     speak(data.reply);
 
   } catch {
-    addMessage("Estoy teniendo un problema técnico...", "bot");
+    addMessage("Error técnico", "bot");
   }
 }
 
-async function loadChat() {
-  try {
-    const res = await fetch(`/chat-history/${getUserId()}`);
-    const data = await res.json();
+// =====================
+// 🚨 EMERGENCIA
+// =====================
+async function emergency() {
+  addMessage("Necesito ayuda", "user");
 
-    data.chat.forEach(msg => {
-      addMessage(msg.text, msg.role === "user" ? "user" : "bot");
-    });
+  const res = await fetch("/chat", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      userId: getUserId(),
+      message: "emergencia"
+    })
+  });
 
-  } catch (err) {
-    console.log("Error cargando chat");
-  }
+  const data = await res.json();
+  addMessage(data.reply, "bot");
+  speak(data.reply);
 }
 
-function addMessage(text, type) {
-  const div = document.createElement("div");
-  div.className = "msg " + type;
-  div.innerText = text;
+// =====================
+// 😔 EMOCIONAL
+// =====================
+async function feelingBad() {
 
-  document.getElementById("chat").appendChild(div);
-  div.scrollIntoView();
+  addMessage("No me siento bien", "user");
+  addMessage("Escribiendo...", "bot");
+
+  const res = await fetch("/chat", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      userId: getUserId(),
+      message: "me siento mal"
+    })
+  });
+
+  const data = await res.json();
+
+  document.getElementById("chat").lastChild.remove();
+
+  addMessage(data.reply, "bot");
+  speak(data.reply);
 }
 
+// =====================
+// 🎤 VOZ
+// =====================
 function startVoice() {
   const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 
@@ -378,190 +435,50 @@ function startVoice() {
     document.getElementById("text").value = text;
     send();
   };
-
-  recognition.onerror = function() {
-    addMessage("No pude escucharte bien 😕", "bot");
-  };
 }
 
+// =====================
+// 🔔 NOTIFICACIÓN
+// =====================
 function showNotification(text) {
   if (Notification.permission === "granted") {
-    new Notification("NORA", {
-      body: text,
-      icon: "/icon.png"
-    });
+    new Notification("NORA", { body: text });
   }
 }
 
-function playSound() {
-  const audio = new Audio("https://actions.google.com/sounds/v1/alarms/alarm_clock.ogg");
-  audio.play();
-}
-
-
-
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js");
-}
-
 // =====================
-// ESCUCHAR FOLLOW-UP
+// 🔄 INICIO (CLAVE)
 // =====================
-setInterval(async () => {
+window.addEventListener("load", async () => {
+
+  // botón sonido
+  document.getElementById("soundBtn").innerText =
+    soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+
   try {
-    const res = await fetch(`/follow-up/${getUserId()}`);
+    const res = await fetch(`/chat-history/${getUserId()}`);
     const data = await res.json();
 
-    data.messages.forEach(msg => {
-      addMessage(msg, "bot");
-      speak(msg);
-    });
-
-  } catch {}
-}, 5000); // cada 5 segundos
-
-// =====================
-// 🔊 CONFIG SONIDO
-// =====================
-let soundEnabled = localStorage.getItem("sound") !== "off";
-
-// =====================
-// 🧠 LIMPIAR TEXTO
-// =====================
-function cleanText(text) {
-  return text.replace(/\(.*?\)/g, "").trim();
-}
-
-// =====================
-// 🔊 HABLAR
-// =====================
-function speak(text) {
-  if (!soundEnabled) return;
-
-  // 🧠 limpiar texto (sin paréntesis)
-  const cleaned = text.replace(/\(.*?\)/g, "").trim();
-
-  // ✂️ dividir en frases para sonar más natural
-  const parts = cleaned.split(/[.,!?]/).filter(p => p.trim() !== "");
-
-  // 🎤 obtener voces
-  const voices = speechSynthesis.getVoices();
-
-  const preferredVoice =
-    voices.find(v => v.lang.includes("es") && v.name.toLowerCase().includes("google")) ||
-    voices.find(v => v.lang.includes("es")) ||
-    voices[0];
-
-  // 🗣️ función para hablar cada parte
-  parts.forEach((part, index) => {
-
-    const utterance = new SpeechSynthesisUtterance(part.trim());
-
-    utterance.lang = "es-ES";
-
-    // 🐢 velocidad ideal para adultos mayores
-    utterance.rate = 0.9;
-
-    // 🎵 tono natural
-    utterance.pitch = 1;
-
-    // 🔊 volumen
-    utterance.volume = 1;
-
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
+    if (data.chat.length === 0) {
+      const name = getUserId();
+      addMessage(`Hola ${name}, ¿cómo estás hoy?`, "bot");
+      speak(`Hola ${name}, ¿cómo estás hoy?`);
+    } else {
+      data.chat.forEach(msg => {
+        addMessage(msg.text, msg.role === "user" ? "user" : "bot");
+      });
     }
 
-    // ⏱️ delay entre frases (clave para naturalidad)
-    setTimeout(() => {
-      speechSynthesis.speak(utterance);
-    }, index * 700);
-  });
-}
-
-// =====================
-// 🔘 TOGGLE SONIDO
-// =====================
-function toggleSound() {
-  soundEnabled = !soundEnabled;
-
-  localStorage.setItem("sound", soundEnabled ? "on" : "off");
-
-  const btn = document.getElementById("soundBtn");
-  if (btn) {
-    btn.innerText = soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+  } catch {
+    addMessage("Hola, ¿cómo estás?", "bot");
   }
-}
 
-// =====================
-// 🧠 MODO SIMPLE
-// =====================
-let simple = false;
-
-function toggleSimpleMode() {
-  simple = !simple;
-
-  document.getElementById("simpleMode").style.display = simple ? "block" : "none";
-  document.getElementById("normalMode").style.display = simple ? "none" : "block";
-}
-
-// =====================
-// ⌨️ ENTER PARA ENVIAR
-// =====================
-document.getElementById("text").addEventListener("keypress", function(e) {
-  if (e.key === "Enter") send();
 });
 
 // =====================
-// 🔄 INIT BOTÓN SONIDO
-// =====================
-window.addEventListener("load", () => {
-  const btn = document.getElementById("soundBtn");
-  if (btn) {
-    btn.innerText = soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
-  }
-});
-
-// =====================
-// ESCUCHAR RECORDATORIOS
-// =====================
-setInterval(async () => {
-  try {
-    const res = await fetch(`/reminders/${getUserId()}`);
-    const data = await res.json();
-
-    data.reminders.forEach(r => {
-      addMessage("🔔 " + r.text, "bot");
-      speak(r.text);
-      showNotification(r.text);
-    });
-
-  } catch {}
-}, 5000);
-
-async function requestNotificationPermission() {
-  const permission = await Notification.requestPermission();
-
-  if (permission === "granted") {
-    console.log("Notificaciones activadas");
-  }
-}
-
-requestNotificationPermission();
-
-function showNotification(text) {
-  if (Notification.permission === "granted") {
-    new Notification("NORA", {
-      body: text
-    });
-  }
-}
-
 resetTimer();
 lucide.createIcons();
-window.addEventListener("load", () => {
-  loadChat();
-});
+
 </script>
 
 </body>
