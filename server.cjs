@@ -3,6 +3,8 @@ const cors = require("cors");
 const path = require("path");
 require("dotenv").config();
 
+console.log("MEMORY:", require("./memory"));
+
 const askGroq = require("./groqService");
 const detectEmotionAI = require("./emotionService");
 
@@ -10,7 +12,9 @@ const {
   getProfile,
   saveProfile,
   extractUserInfo,
-  saveEmotion
+  saveEmotion,
+  getChat,
+  saveMessage
 } = require("./memory");
 
 const detectEmergency = require("./emergencyService");
@@ -18,7 +22,8 @@ const sendAlert = require("./alertService");
 const { scheduleFollowUp, getFollowUps } = require("./followUpService");
 const analyzeRisk = require("./alertLogic");
 const { addReminder, checkReminders } = require("./reminderService");
-const { saveMessage, getChat } = require("./memory");
+
+
 
 const webpush = require("web-push");
 
@@ -26,12 +31,13 @@ const webpush = require("web-push");
 // 🔔 CONFIG PUSH
 // =====================
 webpush.setVapidDetails(
-  "mailto:tu@email.com",
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
+  "mailto:test@test.com",
+  "BMMdW8MdRQZRJDfHryu7-_Vq5UYZ6s61s88vOwTlp-Uqvm8aNdDn9B31C_lEOZUX1KD9SxV5_dzNGnaBvcLElsY",
+  "2EnXMPI6vbarQPcio4wDeuPwUAcR0ouZRvYCTfcO93Y"
 );
 
 const subscriptions = [];
+
 
 // =====================
 // 🚀 APP

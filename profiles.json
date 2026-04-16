@@ -168,5 +168,30 @@
         "time": "2026-04-11T01:17:14.862Z"
       }
     ]
+  },
+  "diego": {
+    "chat": [
+      {
+        "role": "user",
+        "text": "iniciar conversación",
+        "time": "2026-04-16T02:45:28.540Z"
+      },
+      {
+        "role": "bot",
+        "text": "Hola Diego, me alegra verte. ¿Cómo te va hoy? Quiero saber cómo puedo ayudarte.",
+        "time": "2026-04-16T02:45:29.974Z"
+      }
+    ],
+    "name": "diego",
+    "likes": [],
+    "notes": [],
+    "lastEmotion": "la clasificación de las emociones en una palabra podría ser:\n\n- feliz: optimista\n- triste: depresivo\n- ansioso: inquieto\n- aburrido: desinteresado\n- neutral: indiferente\n\nasí, según el mensaje \"iniciar conversación\", sería \"indiferente\".",
+    "lastInteraction": "2026-04-16T02:45:29.651Z",
+    "history": [
+      {
+        "emotion": "la clasificación de las emociones en una palabra podría ser:\n\n- feliz: optimista\n- triste: depresivo\n- ansioso: inquieto\n- aburrido: desinteresado\n- neutral: indiferente\n\nasí, según el mensaje \"iniciar conversación\", sería \"indiferente\".",
+        "time": "2026-04-16T02:45:29.651Z"
+      }
+    ]
   }
 }

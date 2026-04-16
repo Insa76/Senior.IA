@@ -100,26 +100,29 @@ function getReminders(userId) {
 const chats = {};
 
 function saveMessage(userId, role, text) {
-  if (!chats[userId]) chats[userId] = [];
+  const data = loadProfiles();
 
-  chats[userId].push({
+  if (!data[userId]) data[userId] = {};
+  if (!data[userId].chat) data[userId].chat = [];
+
+  data[userId].chat.push({
     role,
     text,
-    time: new Date()
+    time: new Date().toISOString()
   });
+
+  // limitar historial
+  data[userId].chat = data[userId].chat.slice(-50);
+
+  saveProfiles(data);
 }
 
 function getChat(userId) {
-  return chats[userId] || [];
+  const data = loadProfiles();
+  return data[userId]?.chat || [];
 }
 
-module.exports = {
-  saveMessage,
-  getChat
-};
 
-module.exports.saveReminder = saveReminder;
-module.exports.getReminders = getReminders;
 
 module.exports = {
   getProfile,
@@ -127,6 +130,7 @@ module.exports = {
   extractUserInfo,
   saveEmotion,
   saveReminder,
-  getReminders
-
+  getReminders,
+  saveMessage,
+  getChat
 };
