@@ -338,6 +338,23 @@ function toggleSound() {
 }
 
 // =====================
+// 🧠 MODO SIMPLE
+// =====================
+let simple = false;
+
+function toggleSimpleMode() {
+  simple = !simple;
+
+  const simpleEl = document.getElementById("simpleMode");
+  const normalEl = document.getElementById("normalMode");
+
+  if (!simpleEl || !normalEl) return;
+
+  simpleEl.style.display = simple ? "block" : "none";
+  normalEl.style.display = simple ? "none" : "block";
+}
+
+// =====================
 // 💬 CHAT
 // =====================
 async function send() {
@@ -477,7 +494,9 @@ window.addEventListener("load", async () => {
 
 // =====================
 resetTimer();
-lucide.createIcons();
+if (window.lucide) {
+  lucide.createIcons();
+}
 
 </script>
 
