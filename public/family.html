@@ -5,11 +5,14 @@
   <title>Panel Familiar</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <style>
     body {
       font-family: Arial;
       background: #f2f4f8;
       padding: 20px;
+      margin: 0;
     }
 
     h1 {
@@ -32,17 +35,9 @@
       color: white;
     }
 
-    .normal {
-      background: #4caf50;
-    }
-
-    .atencion {
-      background: #ff9800;
-    }
-
-    .urgente {
-      background: #f44336;
-    }
+    .normal { background: #4caf50; }
+    .atencion { background: #ff9800; }
+    .urgente { background: #f44336; }
   </style>
 </head>
 
@@ -79,99 +74,122 @@
 </div>
 
 <script>
-    let chart; 
-async function loadData() { 
-  const res = await fetch("/family/web-user");
-  const data = await res.json();
 
-  document.getElementById("name").innerText = data.name;
-  document.getElementById("emotion").innerText = data.emotion;
-  document.getElementById("time").innerText = data.lastInteraction;
-  document.getElementById("likes").innerText = data.likes.join(", ");
+let chart;
 
-  const box = document.getElementById("statusBox");
-
-  if (data.status === "normal") {
-    box.className = "status normal";
-    box.innerText = "🟢 Todo bien";
-  }
-
-  if (data.status === "atencion") {
-    box.className = "status atencion";
-    box.innerText = "🟡 Requiere atención";
-  }
-
-  if (data.status === "urgente") {
-    box.className = "status urgente";
-    box.innerText = "🔴 URGENTE";
-  }
-
-  const historyEl = document.getElementById("history");
-  historyEl.innerHTML = "";
-
-  (data.history || []).forEach(item => {
-    const li = document.createElement("li");
-    li.innerText = `${item.emotion} - ${new Date(item.time).toLocaleTimeString()}`;
-    historyEl.appendChild(li);
-  });
-
-  const labels = data.history.map(item =>
-  new Date(item.time).toLocaleTimeString()
-);
-
-const values = data.history.map(item => {
-  switch (item.emotion) {
-    case "feliz": return 4;
-    case "neutral": return 3;
-    case "aburrido": return 2;
-    case "ansioso": return 1;
-    case "triste": return 0;
-    default: return 2;
-  }
-});
-
-// destruir gráfico anterior
-if (chart) {
-  chart.destroy();
+// =====================
+// 🔐 USER ID
+// =====================
+function getUserId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("userId");
 }
 
-const ctx = document.getElementById("chart");
+// =====================
+// 📊 CARGAR DATA
+// =====================
+async function loadData() {
+  try {
+    const res = await fetch(`/family/${getUserId()}`);
+    const data = await res.json();
 
-chart = new Chart(ctx, {
-  type: "line",
-  data: {
-    labels,
-    datasets: [{
-      label: "Estado emocional",
-      data: values,
-      tension: 0.3
-    }]
-  },
-  options: {
-    scales: {
-      y: {
-        ticks: {
-          callback: function(value) {
-            switch (value) {
-              case 4: return "😊";
-              case 3: return "😐";
-              case 2: return "😶";
-              case 1: return "😟";
-              case 0: return "😢";
+    // 🧠 INFO BÁSICA
+    document.getElementById("name").innerText = data.name || "-";
+    document.getElementById("emotion").innerText = data.emotion || "-";
+    document.getElementById("time").innerText = data.lastInteraction || "-";
+    document.getElementById("likes").innerText =
+      (data.likes || []).join(", ") || "-";
+
+    // =====================
+    // 🚨 STATUS
+    // =====================
+    const box = document.getElementById("statusBox");
+
+    if (data.status === "normal") {
+      box.className = "status normal";
+      box.innerText = "🟢 Todo bien";
+    }
+
+    if (data.status === "atencion") {
+      box.className = "status atencion";
+      box.innerText = "🟡 Requiere atención";
+    }
+
+    if (data.status === "urgente") {
+      box.className = "status urgente";
+      box.innerText = "🔴 URGENTE";
+    }
+
+    // =====================
+    // 📜 HISTORIAL
+    // =====================
+    const historyEl = document.getElementById("history");
+    historyEl.innerHTML = "";
+
+    (data.history || []).forEach(item => {
+      const li = document.createElement("li");
+      li.innerText = `${item.emotion} - ${new Date(item.time).toLocaleTimeString()}`;
+      historyEl.appendChild(li);
+    });
+
+    // =====================
+    // 📈 GRÁFICO
+    // =====================
+    const labels = (data.history || []).map(item =>
+      new Date(item.time).toLocaleTimeString()
+    );
+
+    const values = (data.history || []).map(item => {
+      switch (item.emotion) {
+        case "feliz": return 4;
+        case "neutral": return 3;
+        case "aburrido": return 2;
+        case "ansioso": return 1;
+        case "triste": return 0;
+        default: return 2;
+      }
+    });
+
+    if (chart) chart.destroy();
+
+    const ctx = document.getElementById("chart");
+
+    chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: "Estado emocional",
+          data: values,
+          tension: 0.3
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            min: 0,
+            max: 4,
+            ticks: {
+              callback: function(value) {
+                return ["😢","😟","😶","😐","😊"][value] || "";
+              }
             }
           }
-        },
-        min: 0,
-        max: 4
+        }
       }
-    }
+    });
+
+  } catch (err) {
+    console.log("Error cargando panel");
   }
-});
 }
 
+// =====================
+// 🔄 AUTO UPDATE
+// =====================
+window.addEventListener("load", loadData);
+setInterval(loadData, 3000);
 
-setInterval(loadData, 5000);
-loadData();
 </script>
 
 </body>
