@@ -90,33 +90,52 @@ button {
 </div>
 
 <script>
+let familyUrl = "";
+
+function normalizedUserId() {
+  return document.getElementById("userId").value.trim();
+}
+
+function updateFamilyLink() {
+  const userId = normalizedUserId();
+  if (!userId) {
+    familyUrl = "";
+    document.getElementById("familyLink").textContent = "";
+    return;
+  }
+  familyUrl = `${window.location.origin}/family.html?userId=${encodeURIComponent(userId)}`;
+  document.getElementById("familyLink").textContent = `Link para el familiar: ${familyUrl}`;
+}
 
 function login() {
-  const userId = document.getElementById("userId").value.trim();
-
-  if (!userId) return alert("Ingresá un nombre");
-
-  // 💾 guardar
+  const userId = normalizedUserId();
+  if (!userId) return alert("Ingresá un nombre o identificador.");
+  if (userId.length > 80 || /[\/\\\\?#]/.test(userId)) {
+    return alert("Usá un identificador de hasta 80 caracteres, sin /, \\, ? ni #.");
+  }
   localStorage.setItem("userId", userId);
-
-  window.location.href = `/?userId=${userId}`;
+  window.location.href = `/?userId=${encodeURIComponent(userId)}`;
 }
 
 function generateUser() {
-  const id = "user-" + Math.floor(Math.random() * 100000);
-
+  const id = "user-" + Math.floor(100000 + Math.random() * 900000);
   document.getElementById("userId").value = id;
-
-  document.getElementById("generatedId").innerText =
-    "ID generado: " + id;
+  document.getElementById("generatedId").textContent = "ID generado: " + id;
+  updateFamilyLink();
 }
 
-function goFamily() {
-  const userId = document.getElementById("userId").value.trim();
-  if (!userId) return alert("Ingresá un nombre");
-
-  window.location.href = `/family.html?userId=${userId}`;
+async function copyLink() {
+  updateFamilyLink();
+  if (!familyUrl) return alert("Primero ingresá o generá un usuario.");
+  try {
+    await navigator.clipboard.writeText(familyUrl);
+    alert("Link familiar copiado.");
+  } catch (_) {
+    window.prompt("Copiá este link para el familiar:", familyUrl);
+  }
 }
+
+document.getElementById("userId").addEventListener("input", updateFamilyLink);
 </script>
 
 </body>

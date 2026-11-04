@@ -1,16 +1,32 @@
 function detectEmergency(text) {
-  text = text.toLowerCase();
+  const normalized = String(text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[¿¡.,!?]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  const keywords = [
+  const urgentPhrases = [
     "no puedo respirar",
+    "me cuesta respirar",
+    "me falta el aire",
     "me duele el pecho",
-    "me caí",
+    "dolor fuerte en el pecho",
+    "me cai",
+    "me he caido",
     "no me puedo levantar",
-    "ayuda",
-    "emergencia"
+    "no puedo levantarme",
+    "me desmaye",
+    "estoy sangrando mucho",
+    "necesito ayuda",
+    "auxilio",
+    "emergencia",
+    "es una emergencia"
   ];
 
-  return keywords.some(k => text.includes(k));
+  return normalized === "ayuda" ||
+    urgentPhrases.some(phrase => normalized.includes(phrase));
 }
 
 module.exports = detectEmergency;

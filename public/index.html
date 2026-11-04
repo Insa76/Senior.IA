@@ -191,9 +191,10 @@ button {
   😔 No me siento bien
 </button>
 
-<button id="soundBtn" onclick="toggleSound()">
-  🔊 Sonido ON
-</button>
+<div style="display:flex;gap:8px;flex-wrap:wrap;padding:8px;">
+<button id="soundBtn" onclick="toggleSound()">🔊 Sonido ON</button>
+<button id="pushBtn" onclick="enableNotifications()">🔔 Activar avisos</button>
+</div>
 
 <div id="chat"></div>
 
@@ -208,296 +209,250 @@ button {
 </div>
 </div>
 
+
 <script>
+"use strict";
 
-// =====================
-// 🔐 USER AUTO LOGIN
-// =====================
-(function () {
-  const params = new URLSearchParams(window.location.search);
-  let userId = params.get("userId");
+const params = new URLSearchParams(window.location.search);
+const currentUserId = params.get("userId") || localStorage.getItem("userId");
 
-  if (!userId) {
-    userId = localStorage.getItem("userId");
+if (!currentUserId) {
+  window.location.replace("/login.html");
+} else {
+  localStorage.setItem("userId", currentUserId);
+}
 
-    if (userId) {
-      window.location.href = `/?userId=${userId}`;
-    } else {
-      window.location.href = "/login.html";
-    }
-  }
-})();
-
-// =====================
-// 🔊 CONFIG SONIDO
-// =====================
 let soundEnabled = localStorage.getItem("sound") !== "off";
+let simpleMode = false;
+let serviceWorkerRegistration = null;
+let busy = false;
 
-// =====================
-// 🧠 UTIL
-// =====================
 function getUserId() {
-  const params = new URLSearchParams(window.location.search);
-  return params.get("userId") || "default-user";
+  return currentUserId || "default-user";
 }
 
-// =====================
-// ⏱️ INACTIVIDAD
-// =====================
-let inactivityTimer;
-
-function resetTimer() {
-  clearTimeout(inactivityTimer);
-
-  inactivityTimer = setTimeout(() => {
-    triggerProactiveMessage();
-  }, 15000);
-}
-
-// =====================
-// 💬 PROACTIVO
-// =====================
-async function triggerProactiveMessage() {
-  try {
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        userId: getUserId(),
-        message: "iniciar conversación"
-      })
-    });
-
-    const data = await res.json();
-    addMessage(data.reply, "bot");
-    speak(data.reply);
-
-  } catch {
-    addMessage("¿Seguís ahí? 😊", "bot");
-  }
-}
-
-// =====================
-// 💬 MENSAJES
-// =====================
-function addMessage(text, type) {
+function addMessage(text, type = "bot") {
+  const chat = document.getElementById("chat");
+  if (!chat) return;
   const div = document.createElement("div");
   div.className = "msg " + type;
-  div.innerText = text;
-
-  document.getElementById("chat").appendChild(div);
-  div.scrollIntoView();
+  div.textContent = String(text ?? "");
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
 }
 
-// =====================
-// 🔊 HABLAR NATURAL
-// =====================
 function speak(text) {
-  if (!soundEnabled) return;
+  if (!soundEnabled || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
 
-  const cleaned = text.replace(/\(.*?\)/g, "").trim();
+  const cleaned = String(text || "").replace(/\([^)]*\)/g, "").trim();
+  if (!cleaned) return;
 
-  const parts = cleaned.split(/[.,!?]/).filter(p => p.trim() !== "");
-
-  const voices = speechSynthesis.getVoices();
-
-  const preferredVoice =
-    voices.find(v => v.lang.includes("es") && v.name.toLowerCase().includes("google")) ||
-    voices.find(v => v.lang.includes("es")) ||
-    voices[0];
-
-  parts.forEach((part, index) => {
-
-    const utterance = new SpeechSynthesisUtterance(part.trim());
-
-    utterance.lang = "es-ES";
-    utterance.rate = 0.9;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-    }
-
-    setTimeout(() => {
-      speechSynthesis.speak(utterance);
-    }, index * 700);
-  });
+  const utterance = new SpeechSynthesisUtterance(cleaned);
+  const voices = window.speechSynthesis.getVoices();
+  const voice = voices.find(v => v.lang?.toLowerCase().startsWith("es-ar")) ||
+    voices.find(v => v.lang?.toLowerCase().startsWith("es"));
+  utterance.lang = voice?.lang || "es-AR";
+  utterance.rate = 0.92;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+  if (voice) utterance.voice = voice;
+  window.speechSynthesis.speak(utterance);
 }
 
-// =====================
-// 🔘 SONIDO
-// =====================
 function toggleSound() {
   soundEnabled = !soundEnabled;
-
   localStorage.setItem("sound", soundEnabled ? "on" : "off");
-
-  document.getElementById("soundBtn").innerText =
-    soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+  document.getElementById("soundBtn").textContent = soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+  if (!soundEnabled && "speechSynthesis" in window) window.speechSynthesis.cancel();
 }
-
-// =====================
-// 🧠 MODO SIMPLE
-// =====================
-let simple = false;
 
 function toggleSimpleMode() {
-  simple = !simple;
-
-  const simpleEl = document.getElementById("simpleMode");
-  const normalEl = document.getElementById("normalMode");
-
-  if (!simpleEl || !normalEl) return;
-
-  simpleEl.style.display = simple ? "block" : "none";
-  normalEl.style.display = simple ? "none" : "block";
+  simpleMode = !simpleMode;
+  document.getElementById("simpleMode").style.display = simpleMode ? "block" : "none";
+  document.getElementById("normalMode").style.display = simpleMode ? "none" : "block";
 }
 
-// =====================
-// 💬 CHAT
-// =====================
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, options);
+  let data = {};
+  try { data = await response.json(); } catch (_) {}
+  if (!response.ok) throw new Error(data.error || `Error HTTP ${response.status}`);
+  return data;
+}
+
 async function send() {
   const input = document.getElementById("text");
   const message = input.value.trim();
-
-  if (!message) return;
-
-  addMessage(message, "user");
+  if (!message || busy) return;
   input.value = "";
+  await sendMessage(message);
+}
 
-  resetTimer();
-
-  addMessage("Escribiendo...", "bot");
+async function sendMessage(message) {
+  if (busy) return;
+  busy = true;
+  addMessage(message, "user");
+  const pending = document.createElement("div");
+  pending.className = "msg bot";
+  pending.textContent = "NORA está pensando…";
+  document.getElementById("chat").appendChild(pending);
 
   try {
-    const res = await fetch("/chat", {
+    const data = await requestJson("/chat", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        userId: getUserId(),
-        message
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: getUserId(), message })
     });
-
-    const data = await res.json();
-
-    const chat = document.getElementById("chat");
-    chat.removeChild(chat.lastChild);
-
-    addMessage(data.reply, "bot");
+    pending.remove();
+    addMessage(data.reply || "No recibí una respuesta.", "bot");
     speak(data.reply);
-
-  } catch {
-    addMessage("Error técnico", "bot");
+  } catch (error) {
+    pending.remove();
+    addMessage(error.message || "No pude conectarme. Revisá la conexión e intentá nuevamente.", "bot");
+  } finally {
+    busy = false;
   }
 }
 
-// =====================
-// 🚨 EMERGENCIA
-// =====================
 async function emergency() {
-  addMessage("Necesito ayuda", "user");
-
-  const res = await fetch("/chat", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({
-      userId: getUserId(),
-      message: "emergencia"
-    })
-  });
-
-  const data = await res.json();
-  addMessage(data.reply, "bot");
-  speak(data.reply);
+  await sendMessage("Necesito ayuda. Es una emergencia.");
 }
 
-// =====================
-// 😔 EMOCIONAL
-// =====================
 async function feelingBad() {
-
-  addMessage("No me siento bien", "user");
-  addMessage("Escribiendo...", "bot");
-
-  const res = await fetch("/chat", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({
-      userId: getUserId(),
-      message: "me siento mal"
-    })
-  });
-
-  const data = await res.json();
-
-  document.getElementById("chat").lastChild.remove();
-
-  addMessage(data.reply, "bot");
-  speak(data.reply);
+  await sendMessage("No me siento bien.");
 }
 
-// =====================
-// 🎤 VOZ
-// =====================
 function startVoice() {
-  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) {
+    addMessage("Este navegador no permite reconocimiento de voz. Podés escribir tu mensaje.", "bot");
+    return;
+  }
 
-  recognition.lang = "es-ES";
-  recognition.start();
-
-  recognition.onresult = function(event) {
-    const text = event.results[0][0].transcript;
-    document.getElementById("text").value = text;
-    send();
+  const recognition = new Recognition();
+  recognition.lang = "es-AR";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  recognition.onresult = event => {
+    const transcript = event.results?.[0]?.[0]?.transcript;
+    if (transcript) sendMessage(transcript);
   };
-}
-
-// =====================
-// 🔔 NOTIFICACIÓN
-// =====================
-function showNotification(text) {
-  if (Notification.permission === "granted") {
-    new Notification("NORA", { body: text });
+  recognition.onerror = event => {
+    addMessage(event.error === "not-allowed"
+      ? "No tengo permiso para usar el micrófono. Revisá los permisos del navegador."
+      : "No pude escucharte. Probá nuevamente o escribí tu mensaje.", "bot");
+  };
+  try { recognition.start(); } catch (_) {
+    addMessage("No pude iniciar el micrófono. Probá nuevamente.", "bot");
   }
 }
 
-// =====================
-// 🔄 INICIO (CLAVE)
-// =====================
-window.addEventListener("load", async () => {
-
-  // botón sonido
-  document.getElementById("soundBtn").innerText =
-    soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+async function enableNotifications() {
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    addMessage("Este navegador no admite notificaciones push.", "bot");
+    return;
+  }
+  if (!("Notification" in window)) {
+    addMessage("Este navegador no admite notificaciones.", "bot");
+    return;
+  }
 
   try {
-    const res = await fetch(`/chat-history/${getUserId()}`);
-    const data = await res.json();
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      addMessage("No se habilitaron las notificaciones. Podés activarlas desde los permisos del navegador.", "bot");
+      return;
+    }
 
-    if (data.chat.length === 0) {
-      const name = getUserId();
-      addMessage(`Hola ${name}, ¿cómo estás hoy?`, "bot");
-      speak(`Hola ${name}, ¿cómo estás hoy?`);
-    } else {
-      data.chat.forEach(msg => {
-        addMessage(msg.text, msg.role === "user" ? "user" : "bot");
+    const keyData = await requestJson("/push/public-key");
+    const registration = serviceWorkerRegistration || await navigator.serviceWorker.register("/sw.js");
+    serviceWorkerRegistration = registration;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(keyData.publicKey)
       });
     }
 
-  } catch {
-    addMessage("Hola, ¿cómo estás?", "bot");
+    await requestJson(`/subscribe/${encodeURIComponent(getUserId())}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(subscription)
+    });
+    addMessage("Listo. Este dispositivo quedó registrado para recibir avisos.", "bot");
+  } catch (error) {
+    addMessage(`No pude activar los avisos: ${error.message}`, "bot");
   }
-
-});
-
-// =====================
-resetTimer();
-if (window.lucide) {
-  lucide.createIcons();
 }
 
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
+}
+
+async function pollUpdates() {
+  try {
+    const reminders = await requestJson(`/reminders/${encodeURIComponent(getUserId())}`);
+    (reminders.reminders || []).forEach(item => {
+      addMessage(`⏰ Recordatorio: ${item.text}`, "bot");
+      if (Notification.permission === "granted") {
+        if (serviceWorkerRegistration) {
+          serviceWorkerRegistration.showNotification("NORA", { body: item.text });
+        } else {
+          new Notification("NORA", { body: item.text });
+        }
+      }
+    });
+  } catch (_) {}
+
+  try {
+    const followUps = await requestJson(`/follow-up/${encodeURIComponent(getUserId())}`);
+    (followUps.messages || []).forEach(message => {
+      addMessage(message, "bot");
+      speak(message);
+    });
+  } catch (_) {}
+}
+
+async function loadChat() {
+  try {
+    const data = await requestJson(`/chat-history/${encodeURIComponent(getUserId())}`);
+    if (Array.isArray(data.chat) && data.chat.length) {
+      data.chat.forEach(item => addMessage(item.text, item.role === "user" ? "user" : "bot"));
+    } else {
+      addMessage("¡Hola! Soy NORA. ¿Cómo estás hoy? Estoy acá para escucharte.", "bot");
+    }
+  } catch (error) {
+    addMessage("No pude cargar el historial. Podés intentar conversar igualmente.", "bot");
+  }
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+  document.getElementById("soundBtn").textContent = soundEnabled ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+  document.getElementById("text").addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      send();
+    }
+  });
+
+  if ("serviceWorker" in navigator) {
+    try {
+      serviceWorkerRegistration = await navigator.serviceWorker.register("/sw.js");
+    } catch (error) {
+      console.warn("No se pudo registrar el service worker:", error.message);
+    }
+  }
+
+  await loadChat();
+  pollUpdates();
+  setInterval(pollUpdates, 15000);
+  if (window.lucide?.createIcons) window.lucide.createIcons();
+});
 </script>
 
 </body>

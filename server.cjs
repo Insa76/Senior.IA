@@ -3,89 +3,182 @@ const cors = require("cors");
 const path = require("path");
 require("dotenv").config();
 
-console.log("MEMORY:", require("./memory"));
-
 const askGroq = require("./groqService");
 const detectEmotionAI = require("./emotionService");
-
-const {
-  getProfile,
-  saveProfile,
-  extractUserInfo,
-  saveEmotion,
-  getChat,
-  saveMessage
-} = require("./memory");
-
+const memory = require("./memory");
 const detectEmergency = require("./emergencyService");
 const sendAlert = require("./alertService");
 const { scheduleFollowUp, getFollowUps } = require("./followUpService");
 const analyzeRisk = require("./alertLogic");
 const { addReminder, checkReminders } = require("./reminderService");
-
-
-
 const webpush = require("web-push");
 
-// =====================
-// 🔔 CONFIG PUSH
-// =====================
-webpush.setVapidDetails(
-  "mailto:test@test.com",
-  "BMMdW8MdRQZRJDfHryu7-_Vq5UYZ6s61s88vOwTlp-Uqvm8aNdDn9B31C_lEOZUX1KD9SxV5_dzNGnaBvcLElsY",
-  "2EnXMPI6vbarQPcio4wDeuPwUAcR0ouZRvYCTfcO93Y"
-);
-
-const subscriptions = [];
-
-
-// =====================
-// 🚀 APP
-// =====================
 const app = express();
+const PORT = Number(process.env.PORT) || 3000;
+const BASE_PROMPT = `
+Te llamás NORA. Sos una acompañante conversacional para personas mayores.
+Hablá en español rioplatense, con calidez, paciencia y respeto.
+Usá palabras sencillas y frases cortas. No infantilices a la persona.
+Escuchá antes de aconsejar. No inventes datos ni afirmes haber realizado acciones que no se confirmaron.
+No diagnostiques enfermedades ni reemplaces a profesionales de salud.
+Si la persona describe una emergencia médica, recomendá llamar al servicio local de emergencias y avisar a una persona de confianza.
+`;
+const STYLE_RULES = "Respondé de manera natural, breve y cercana. Usá el nombre solo cuando resulte natural.";
+
+app.disable("x-powered-by");
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
-// =====================
-// 🧠 PROMPT BASE
-// =====================
-const BASE_PROMPT = `
-Te llamás NORA.
-Sos un asistente para acompañar personas mayores.
+let pushConfigured = false;
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  try {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || "mailto:admin@example.com",
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+    pushConfigured = true;
+  } catch (error) {
+    console.error("Configuración VAPID inválida:", error.message);
+  }
+}
 
-- cálida
-- paciente
-- cercana
-- clara
+const pendingNotifications = new Map();
 
-Nunca digas que sos una IA.
-`;
+function validUserId(value) {
+  return typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.trim().length <= 80 &&
+    !/[\/\\\\?#]/.test(value);
+}
 
-const STYLE_RULES = `
-- hablá simple
-- tono humano
-- frases cortas
-`;
+function enqueueNotification(userId, item) {
+  const current = pendingNotifications.get(userId) || [];
+  current.push(item);
+  pendingNotifications.set(userId, current.slice(-30));
+}
 
-// =====================
-// 🔁 FOLLOW UP
-// =====================
+async function sendPushToUser(userId, message) {
+  if (!pushConfigured) return;
+  const subscriptions = memory.getPushSubscriptions(userId);
+
+  await Promise.all(subscriptions.map(async subscription => {
+    try {
+      await webpush.sendNotification(subscription, JSON.stringify({
+        title: "NORA",
+        body: message,
+        url: `/?userId=${encodeURIComponent(userId)}`
+      }));
+    } catch (error) {
+      if (error.statusCode === 404 || error.statusCode === 410) {
+        memory.removePushSubscription(userId, subscription.endpoint);
+      } else {
+        console.error("Error enviando push:", error.message);
+      }
+    }
+  }));
+}
+
+// Revisa recordatorios aunque la pantalla de NORA no esté abierta.
+// En servicios gratuitos que suspenden el proceso, el chequeo se pausa mientras duermen.
+async function processDueReminders() {
+  for (const userId of memory.getAllUserIds()) {
+    const due = checkReminders(userId);
+    for (const reminder of due) {
+      enqueueNotification(userId, reminder);
+      await sendPushToUser(userId, reminder.text);
+      console.log(`Recordatorio vencido para ${userId}.`);
+    }
+  }
+}
+const reminderTimer = setInterval(() => {
+  processDueReminders().catch(error => console.error("Error revisando recordatorios:", error.message));
+}, 15000);
+if (typeof reminderTimer.unref === "function") reminderTimer.unref();
+
+function parseReminder(message) {
+  const lower = message.toLowerCase();
+  if (!/(recordame|recordá|recordar)/i.test(lower)) return null;
+
+  const now = new Date();
+  let time = null;
+  let repeat = null;
+
+  const minutes = lower.match(/\ben (\d{1,3}) minutos?\b/);
+  const hoursAhead = lower.match(/\ben (\d{1,2}) horas?\b/);
+  const hour = lower.match(/\ba las (\d{1,2})(?::(\d{2}))?\b/);
+
+  if (minutes) {
+    const amount = Number(minutes[1]);
+    if (amount < 1 || amount > 10080) return { invalid: true };
+    time = new Date(now.getTime() + amount * 60000);
+  } else if (hoursAhead) {
+    const amount = Number(hoursAhead[1]);
+    if (amount < 1 || amount > 168) return { invalid: true };
+    time = new Date(now.getTime() + amount * 60 * 60000);
+  } else if (hour) {
+    const h = Number(hour[1]);
+    const m = Number(hour[2] || 0);
+    if (h > 23 || m > 59) return { invalid: true };
+    time = new Date(now);
+    if (lower.includes("mañana")) time.setDate(time.getDate() + 1);
+    time.setHours(h, m, 0, 0);
+    if (!lower.includes("mañana") && time <= now) time.setDate(time.getDate() + 1);
+  }
+
+  if (lower.includes("mañana") && !time) return { needsTime: true };
+
+  if (lower.includes("todos los días") || lower.includes("todos los dias")) {
+    repeat = "daily";
+  }
+
+  if (!time) return { needsTime: true };
+  return { time, repeat };
+}
+
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "SeniorIA",
+    groqConfigured: Boolean(process.env.GROQ_API_KEY),
+    whatsappConfigured: Boolean(
+      process.env.WHATSAPP_TOKEN &&
+      process.env.WHATSAPP_PHONE_NUMBER_ID &&
+      process.env.WHATSAPP_TO
+    ),
+    pushConfigured
+  });
+});
+
+app.get("/push/public-key", (req, res) => {
+  if (!pushConfigured) return res.status(503).json({ error: "Notificaciones push no configuradas." });
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+app.post("/subscribe/:userId", (req, res) => {
+  const { userId } = req.params;
+  if (!validUserId(userId)) return res.status(400).json({ error: "Usuario inválido." });
+  try {
+    memory.savePushSubscription(userId, req.body);
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.get("/follow-up/:userId", (req, res) => {
+  if (!validUserId(req.params.userId)) return res.status(400).json({ messages: [] });
   res.json({ messages: getFollowUps(req.params.userId) });
 });
 
-// =====================
-// 👨‍👩‍👧 PANEL
-// =====================
 app.get("/family/:userId", (req, res) => {
-  const profile = getProfile(req.params.userId);
+  const { userId } = req.params;
+  if (!validUserId(userId)) return res.status(400).json({ error: "Usuario inválido." });
 
+  const profile = memory.getProfile(userId);
   const risk = analyzeRisk(profile.history || []);
-
-  let status = "normal";
-  if (risk === "medio") status = "atencion";
-  if (risk === "alto") status = "urgente";
+  const status = risk === "alto" ? "urgente" : risk === "medio" ? "atencion" : "normal";
 
   res.json({
     name: profile.name || "Usuario",
@@ -97,148 +190,106 @@ app.get("/family/:userId", (req, res) => {
   });
 });
 
-// =====================
-// 🔔 RECORDATORIOS
-// =====================
 app.get("/reminders/:userId", (req, res) => {
-  const list = checkReminders().filter(r => r.userId === req.params.userId);
-
-  // 🔔 enviar push también
-  list.forEach(r => sendPush(r.text));
-
-  res.json({ reminders: list });
+  const { userId } = req.params;
+  if (!validUserId(userId)) return res.status(400).json({ reminders: [] });
+  const reminders = pendingNotifications.get(userId) || [];
+  pendingNotifications.delete(userId);
+  res.json({ reminders });
 });
 
-// =====================
-// 📩 SUSCRIPCIÓN PUSH
-// =====================
-app.post("/subscribe", (req, res) => {
-  subscriptions.push(req.body);
-  res.status(201).json({});
-});
-
-// =====================
-// 🔔 ENVIAR PUSH
-// =====================
-function sendPush(message) {
-  subscriptions.forEach(sub => {
-    webpush.sendNotification(sub, JSON.stringify({
-      title: "NORA",
-      body: message
-    })).catch(console.error);
-  });
-}
-
-// =====================
-// 💬 CHAT
-// =====================
 app.post("/chat", async (req, res) => {
-  const { userId, message } = req.body;
-  const msg = message.toLowerCase();
-  const now = new Date();
+  const userId = typeof req.body?.userId === "string" ? req.body.userId.trim() : "";
+  const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
 
-  saveMessage(userId, "user", message);
+  if (!validUserId(userId)) return res.status(400).json({ error: "Falta un identificador de usuario válido." });
+  if (!message) return res.status(400).json({ error: "Escribí un mensaje." });
+  if (message.length > 4000) return res.status(413).json({ error: "El mensaje es demasiado largo." });
 
-  // 🚨 EMERGENCIA
+  memory.saveMessage(userId, "user", message);
+
   if (detectEmergency(message)) {
-    await sendAlert(`Emergencia: ${message}`);
+    let alertSent = false;
+    try {
+      await sendAlert(`Usuario: ${userId}\nMensaje: ${message}`);
+      alertSent = true;
+    } catch (error) {
+      console.error("No se pudo confirmar el envío de la alerta:", error.message);
+    }
 
-    return res.json({
-      reply: "Estoy con vos. Ya avisé a alguien de confianza."
-    });
+    const reply = alertSent
+      ? "Estoy con vos. Ya envié una alerta a tu contacto de confianza. Si estás en peligro o necesitás atención médica, llamá también al servicio local de emergencias."
+      : "Estoy con vos. Detecté que necesitás ayuda, pero no pude confirmar el aviso a tu contacto. Si estás en peligro o necesitás atención médica, llamá ahora al servicio local de emergencias y contactá a alguien de confianza.";
+
+    memory.saveMessage(userId, "assistant", reply);
+    return res.json({ reply, emergency: true, alertSent });
   }
 
   try {
-    let profile = getProfile(userId);
-    if (!profile.name) {
-      profile.name = userId;
-     }
-    profile = extractUserInfo(message, profile);
-    saveProfile(userId, profile);
+    let profile = memory.getProfile(userId);
+    if (!profile.name) profile.name = userId;
+    profile = memory.extractUserInfo(message, profile);
+    memory.saveProfile(userId, profile);
 
-    // =====================
-    // 🔔 RECORDATORIOS INTELIGENTES
-    // =====================
-    if (msg.includes("recordame")) {
-
-      let time = new Date();
-      let repeat = null;
-
-      // minutos
-      const min = msg.match(/en (\d+) minutos/);
-      if (min) {
-        time = new Date(now.getTime() + parseInt(min[1]) * 60000);
+    const reminderRequest = parseReminder(message);
+    if (reminderRequest) {
+      let reply;
+      if (reminderRequest.invalid) {
+        reply = "No pude interpretar ese horario. Decime, por ejemplo: «recordame en 10 minutos» o «recordame mañana a las 9».";
+      } else if (reminderRequest.needsTime) {
+        reply = "Claro. ¿A qué hora o dentro de cuánto tiempo querés que te lo recuerde?";
+      } else {
+        addReminder(userId, message, reminderRequest.time, reminderRequest.repeat);
+        const formatted = reminderRequest.time.toLocaleString("es-AR", {
+          dateStyle: "short",
+          timeStyle: "short"
+        });
+        reply = `Perfecto, lo agendé para ${formatted}${reminderRequest.repeat ? " y se repetirá todos los días" : ""}.`;
       }
-
-      // hora
-      const hour = msg.match(/a las (\d{1,2})/);
-      if (hour) {
-        time.setHours(parseInt(hour[1]));
-        time.setMinutes(0);
-        time.setSeconds(0);
-      }
-
-      // mañana
-      if (msg.includes("mañana")) {
-        time.setDate(time.getDate() + 1);
-      }
-
-      // diario
-      if (msg.includes("todos los días") || msg.includes("todos los dias")) {
-        repeat = "daily";
-      }
-
-      addReminder(userId, message, time, repeat);
-
-      return res.json({
-        reply: "Perfecto, ya lo agendé 👍"
-      });
+      memory.saveMessage(userId, "assistant", reply);
+      return res.json({ reply, reminder: true });
     }
 
-    // =====================
-    // 😊 EMOCIÓN
-    // =====================
     const emotion = await detectEmotionAI(message);
+    memory.saveEmotion(userId, emotion);
 
-    saveEmotion(userId, emotion);
-
-    if (emotion.includes("triste") || emotion.includes("ansioso")) {
-      scheduleFollowUp(userId, profile);
+    if (emotion === "triste" || emotion === "ansioso") {
+      scheduleFollowUp(userId, { ...profile, lastEmotion: emotion });
     }
 
-    // =====================
-    // 🧠 PROMPT
-    // =====================
-    const prompt = `
-     ${BASE_PROMPT}
-     ${STYLE_RULES}
+    const response = await askGroq(message, {
+      system: `${BASE_PROMPT}\n${STYLE_RULES}\nNombre de la persona: ${profile.name || "no informado"}. Si conocés su nombre, usalo con naturalidad.`
+    });
 
-     Nombre del usuario: ${profile.name}
-
-      Regla importante:
-      - si sabés el nombre, usalo de forma natural (no en todas las frases)
-
-      Usuario: ${message}
-      Asistente:
-      `;
-
-    const response = await askGroq(prompt);
-
-    saveMessage(userId, "bot", response);
-
+    memory.saveMessage(userId, "assistant", response);
     res.json({ reply: response });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error IA" });
+  } catch (error) {
+    console.error("Error procesando chat:", error.message);
+    res.status(502).json({
+      error: "NORA no pudo conectarse con el servicio de conversación. Revisá la conexión y la configuración de Groq."
+    });
   }
 });
 
 app.get("/chat-history/:userId", (req, res) => {
-  res.json({ chat: getChat(req.params.userId) });
+  const { userId } = req.params;
+  if (!validUserId(userId)) return res.status(400).json({ chat: [] });
+  res.json({ chat: memory.getChat(userId) });
 });
 
-// =====================
-app.listen(3000, () => {
-  console.log("http://localhost:3000");
+app.use((error, req, res, next) => {
+  console.error("Error del servidor:", error.message);
+  if (res.headersSent) return next(error);
+  res.status(500).json({ error: "Error interno del servidor." });
 });
+
+const server = app.listen(PORT, () => {
+  console.log(`SeniorIA escuchando en http://localhost:${PORT}`);
+});
+
+function shutdown() {
+  clearInterval(reminderTimer);
+  server.close(() => process.exit(0));
+}
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

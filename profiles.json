@@ -260,13 +260,182 @@
         "role": "bot",
         "text": "Hola Diego, ¿cómo estás hoy?",
         "time": "2026-04-16T22:24:54.964Z"
+      },
+      {
+        "role": "user",
+        "text": "iniciar conversación",
+        "time": "2026-11-04T22:31:02.181Z"
+      },
+      {
+        "role": "bot",
+        "text": "Estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:31:03.443Z"
+      },
+      {
+        "role": "user",
+        "text": "hola",
+        "time": "2026-11-04T22:31:26.874Z"
+      },
+      {
+        "role": "bot",
+        "text": "Estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:31:27.496Z"
+      },
+      {
+        "role": "user",
+        "text": "iniciar conversación",
+        "time": "2026-11-04T22:31:49.281Z"
+      },
+      {
+        "role": "bot",
+        "text": "Estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:31:49.803Z"
+      },
+      {
+        "role": "user",
+        "text": "iniciar conversación",
+        "time": "2026-11-04T22:43:55.687Z"
+      },
+      {
+        "role": "bot",
+        "text": "Estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:43:56.102Z"
+      },
+      {
+        "role": "user",
+        "text": "No me siento bien.",
+        "time": "2026-11-04T22:59:06.910Z"
+      },
+      {
+        "role": "bot",
+        "text": "Estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:59:07.290Z"
+      },
+      {
+        "role": "user",
+        "text": "hola",
+        "time": "2026-11-04T23:00:53.243Z"
+      },
+      {
+        "role": "assistant",
+        "text": "¡Hola, Diego! ¿Cómo estás hoy?",
+        "time": "2026-11-04T23:00:54.607Z"
+      },
+      {
+        "role": "user",
+        "text": "bien, pero me duele un poco la cabeza",
+        "time": "2026-11-04T23:01:12.173Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Hola, Diego. ¿Te duele la cabeza desde hace cuánto tiempo? ¿Es un dolor leve o se siente más fuerte ahora? A veces descansar un poco, beber agua y evitar luces fuertes ayuda. Si el dolor empeora o sientes náuseas, sería bueno que consultes con tu médico. Si el dolor se vuelve intenso, llama al 911 o al servicio de emergencias y avisa a alguien cercano. ¿Hay algo más que te preocupe?",
+        "time": "2026-11-04T23:01:14.874Z"
+      },
+      {
+        "role": "user",
+        "text": "Recordame en 2 minutos que tengo que tomar agua",
+        "time": "2026-11-04T23:08:56.299Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Perfecto, lo agendé para 4/11/26, 8:10 p. m..",
+        "time": "2026-11-04T23:08:56.347Z"
+      },
+      {
+        "role": "user",
+        "text": "Hoy me siento un poco triste",
+        "time": "2026-11-04T23:13:39.096Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Hola Diego, siento que hoy te sientas un poco triste.  \n¿Te gustaría contarme qué pasó? Estoy acá para escucharte.",
+        "time": "2026-11-04T23:13:40.204Z"
+      },
+      {
+        "role": "user",
+        "text": "Te olvidaste de recordarme de tomar agua, ya pasaron los 2 minutos",
+        "time": "2026-11-04T23:14:09.979Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Claro. ¿A qué hora o dentro de cuánto tiempo querés que te lo recuerde?",
+        "time": "2026-11-04T23:14:09.993Z"
+      },
+      {
+        "role": "user",
+        "text": "recordame dentro de 2 minutos",
+        "time": "2026-11-04T23:14:36.663Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Claro. ¿A qué hora o dentro de cuánto tiempo querés que te lo recuerde?",
+        "time": "2026-11-04T23:14:36.676Z"
+      },
+      {
+        "role": "user",
+        "text": "dentro de 2 minutos a partir de ahora",
+        "time": "2026-11-04T23:14:54.856Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Entendido, Diego. Cuando llegues a los 2 minutos, avísame y vemos qué necesitas. ¡Hasta pronto!",
+        "time": "2026-11-04T23:14:57.097Z"
+      },
+      {
+        "role": "user",
+        "text": "entendiste mal, avisame dentro de 2 minutos que voy a tomar agua",
+        "time": "2026-11-04T23:16:00.919Z"
+      },
+      {
+        "role": "user",
+        "text": "Hola Nora, ¿cómo estás? Me llamo Diego.",
+        "time": "2026-11-04T23:19:37.918Z"
+      },
+      {
+        "role": "user",
+        "text": "Hola Nora, ¿cómo estás? Me llamo Diego.",
+        "time": "2026-11-04T23:20:21.961Z"
+      },
+      {
+        "role": "user",
+        "text": "Hola Nora, ¿cómo estás? Me llamo Diego.",
+        "time": "2026-11-04T23:25:41.298Z"
+      },
+      {
+        "role": "assistant",
+        "text": "¡Hola Diego! Muy bien, gracias. ¿Y tú, cómo andás?",
+        "time": "2026-11-04T23:25:49.277Z"
+      },
+      {
+        "role": "user",
+        "text": "Me llamo Diego y me gusta escuchar música",
+        "time": "2026-11-04T23:26:25.862Z"
+      },
+      {
+        "role": "assistant",
+        "text": "¡Hola Diego! Qué bueno saber que te gusta la música. ¿Qué tipo de canciones o artistas te hacen vibrar más? 🎶",
+        "time": "2026-11-04T23:26:26.829Z"
+      },
+      {
+        "role": "user",
+        "text": "Nora, ¿cómo me llamo y qué me gusta?",
+        "time": "2026-11-04T23:26:56.611Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Hola Diego, te llamás Diego. No estoy seguro de qué te gusta, pero cuéntame, ¿qué te gusta hacer o disfrutar?",
+        "time": "2026-11-04T23:26:57.489Z"
       }
     ],
     "name": "diego",
-    "likes": [],
-    "notes": [],
-    "lastEmotion": "la emoción correspondiente a la palabra \"iniciar conversación\" es... neutral.",
-    "lastInteraction": "2026-04-16T22:24:54.655Z",
+    "likes": [
+      "escuchar música"
+    ],
+    "notes": [
+      "Recordame en 2 minutos que tengo que tomar agua"
+    ],
+    "lastEmotion": "neutral",
+    "lastInteraction": "2026-11-04T23:26:57.489Z",
     "history": [
       {
         "emotion": "la clasificación de las emociones en una palabra podría ser:\n\n- feliz: optimista\n- triste: depresivo\n- ansioso: inquieto\n- aburrido: desinteresado\n- neutral: indiferente\n\nasí, según el mensaje \"iniciar conversación\", sería \"indiferente\".",
@@ -303,6 +472,77 @@
       {
         "emotion": "la emoción correspondiente a la palabra \"iniciar conversación\" es... neutral.",
         "time": "2026-04-16T22:24:54.655Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:31:03.214Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:31:27.301Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:31:49.606Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:43:55.992Z"
+      },
+      {
+        "emotion": "estoy teniendo un problema para responder ahora.",
+        "time": "2026-11-04T22:59:07.182Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:00:53.835Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:01:13.262Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:13:39.702Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:14:56.383Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:16:01.441Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:19:37.976Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:20:21.978Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:25:48.889Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:26:26.408Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:26:57.124Z"
+      }
+    ],
+    "reminders": [
+      {
+        "id": "1793833736316-uqrhj5",
+        "userId": "diego",
+        "text": "Recordame en 2 minutos que tengo que tomar agua",
+        "time": "2026-11-04T23:10:56.315Z",
+        "repeat": null,
+        "done": true,
+        "notified": true
       }
     ]
   }

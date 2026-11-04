@@ -4,14 +4,22 @@ const path = require("path");
 const filePath = path.join(__dirname, "profiles.json");
 
 function loadProfiles() {
-  if (!fs.existsSync(filePath)) {
-    fs.writeFileSync(filePath, JSON.stringify({}));
+  try {
+    if (!fs.existsSync(filePath)) return {};
+    const raw = fs.readFileSync(filePath, "utf8");
+    if (!raw.trim()) return {};
+    const data = JSON.parse(raw);
+    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  } catch (error) {
+    console.error("No se pudo leer profiles.json:", error.message);
+    return {};
   }
-  return JSON.parse(fs.readFileSync(filePath));
 }
 
 function saveProfiles(data) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+  const tempPath = `${filePath}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), "utf8");
+  fs.renameSync(tempPath, filePath);
 }
 
 function getProfile(userId = "default") {
@@ -21,36 +29,38 @@ function getProfile(userId = "default") {
 
 function saveProfile(userId, profile) {
   const data = loadProfiles();
-  data[userId] = profile;
+  data[userId] = { ...(data[userId] || {}), ...(profile || {}) };
   saveProfiles(data);
+  return data[userId];
 }
 
-// =====================
-// EXTRAER INFO INTELIGENTE
-// =====================
-function extractUserInfo(text, profile) {
-  text = text.toLowerCase();
+function extractUserInfo(text, profile = {}) {
+  const normalized = String(text || "").trim();
+  const lower = normalized.toLowerCase();
 
-  if (!profile.likes) profile.likes = [];
-  if (!profile.notes) profile.notes = [];
+  profile.likes = Array.isArray(profile.likes) ? profile.likes : [];
+  profile.notes = Array.isArray(profile.notes) ? profile.notes : [];
 
-  if (text.includes("me gusta")) {
-    const like = text.replace("me gusta", "").trim();
-    if (like && !profile.likes.includes(like)) {
+  const nameMatch = normalized.match(/\bmi nombre es\s+([^,.!?]+)/i);
+  if (nameMatch) profile.name = nameMatch[1].trim();
+
+  const likeMatch = normalized.match(/\bme gusta[n]?\s+([^,.!?]+)/i);
+  if (likeMatch) {
+    const like = likeMatch[1].trim();
+    if (like && !profile.likes.some(item => item.toLowerCase() === like.toLowerCase())) {
       profile.likes.push(like);
     }
   }
 
-  if (text.includes("mi nombre es")) {
-    profile.name = text.replace("mi nombre es", "").trim();
-  }
-
-  if (text.includes("vivo solo")) {
+  if (lower.includes("vivo solo") || lower.includes("vivo sola")) {
     profile.living = "solo";
+  } else if (lower.includes("vivo con")) {
+    profile.living = "acompañado";
   }
 
-  if (text.includes("tengo")) {
-    profile.notes.push(text);
+  if (/\btengo\b/i.test(lower) && profile.notes[profile.notes.length - 1] !== normalized) {
+    profile.notes.push(normalized);
+    profile.notes = profile.notes.slice(-30);
   }
 
   return profile;
@@ -58,71 +68,87 @@ function extractUserInfo(text, profile) {
 
 function saveEmotion(userId, emotion) {
   const data = loadProfiles();
-
   if (!data[userId]) data[userId] = {};
+  const timestamp = new Date().toISOString();
 
-  // guardar estado actual
   data[userId].lastEmotion = emotion;
-  data[userId].lastInteraction = new Date().toISOString();
-
-  // 🔥 HISTORIAL
-  if (!data[userId].history) {
-    data[userId].history = [];
-  }
-
-  data[userId].history.push({
-    emotion,
-    time: new Date().toISOString()
-  });
-
-  // limitar historial
-  data[userId].history = data[userId].history.slice(-20);
+  data[userId].lastInteraction = timestamp;
+  data[userId].history = Array.isArray(data[userId].history) ? data[userId].history : [];
+  data[userId].history.push({ emotion, time: timestamp });
+  data[userId].history = data[userId].history.slice(-50);
 
   saveProfiles(data);
 }
-
-function saveReminder(userId, reminder) {
-  const data = loadProfiles();
-
-  if (!data[userId]) data[userId] = {};
-  if (!data[userId].reminders) data[userId].reminders = [];
-
-  data[userId].reminders.push(reminder);
-
-  saveProfiles(data);
-}
-
-function getReminders(userId) {
-  const data = loadProfiles();
-  return data[userId]?.reminders || [];
-}
-
-const chats = {};
 
 function saveMessage(userId, role, text) {
   const data = loadProfiles();
-
   if (!data[userId]) data[userId] = {};
-  if (!data[userId].chat) data[userId].chat = [];
-
+  data[userId].chat = Array.isArray(data[userId].chat) ? data[userId].chat : [];
+  const timestamp = new Date().toISOString();
+  data[userId].lastInteraction = timestamp;
   data[userId].chat.push({
     role,
-    text,
-    time: new Date().toISOString()
+    text: String(text),
+    time: timestamp
   });
-
-  // limitar historial
-  data[userId].chat = data[userId].chat.slice(-50);
-
+  data[userId].chat = data[userId].chat.slice(-100);
   saveProfiles(data);
 }
 
 function getChat(userId) {
-  const data = loadProfiles();
-  return data[userId]?.chat || [];
+  const chat = getProfile(userId).chat;
+  return Array.isArray(chat) ? chat : [];
 }
 
+function saveReminder(userId, reminder) {
+  const data = loadProfiles();
+  if (!data[userId]) data[userId] = {};
+  data[userId].reminders = Array.isArray(data[userId].reminders) ? data[userId].reminders : [];
+  data[userId].reminders.push(reminder);
+  saveProfiles(data);
+}
 
+function getReminders(userId) {
+  const reminders = getProfile(userId).reminders;
+  return Array.isArray(reminders) ? reminders : [];
+}
+
+function setReminders(userId, reminders) {
+  const data = loadProfiles();
+  if (!data[userId]) data[userId] = {};
+  data[userId].reminders = reminders;
+  saveProfiles(data);
+}
+
+function getAllUserIds() {
+  return Object.keys(loadProfiles());
+}
+
+function savePushSubscription(userId, subscription) {
+  const data = loadProfiles();
+  if (!data[userId]) data[userId] = {};
+  data[userId].pushSubscriptions = Array.isArray(data[userId].pushSubscriptions)
+    ? data[userId].pushSubscriptions
+    : [];
+  const endpoint = subscription && subscription.endpoint;
+  if (!endpoint) throw new Error("Suscripción push inválida");
+  data[userId].pushSubscriptions = data[userId].pushSubscriptions.filter(item => item.endpoint !== endpoint);
+  data[userId].pushSubscriptions.push(subscription);
+  saveProfiles(data);
+}
+
+function getPushSubscriptions(userId) {
+  const subscriptions = getProfile(userId).pushSubscriptions;
+  return Array.isArray(subscriptions) ? subscriptions : [];
+}
+
+function removePushSubscription(userId, endpoint) {
+  const data = loadProfiles();
+  if (!data[userId]) return;
+  data[userId].pushSubscriptions = (data[userId].pushSubscriptions || [])
+    .filter(item => item.endpoint !== endpoint);
+  saveProfiles(data);
+}
 
 module.exports = {
   getProfile,
@@ -131,6 +157,11 @@ module.exports = {
   saveEmotion,
   saveReminder,
   getReminders,
+  setReminders,
   saveMessage,
-  getChat
+  getChat,
+  getAllUserIds,
+  savePushSubscription,
+  getPushSubscriptions,
+  removePushSubscription
 };
