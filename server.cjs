@@ -99,7 +99,10 @@ if (typeof reminderTimer.unref === "function") reminderTimer.unref();
 
 function parseReminder(message) {
   const lower = message.toLowerCase();
-  if (!/(recordame|recordá|recordar)/i.test(lower)) return null;
+  // Detecta pedidos explícitos de recordatorio sin confundir "recordás" (recordar en presente).
+  // La coincidencia por palabra completa evita interceptar preguntas como "¿qué recordás de mí?".
+  const hasReminderIntent = /(?<![\p{L}\p{N}_])(?:recordame|recordarme|recuérdame|recordá|acordate|poneme un recordatorio|creá un recordatorio|agendame)(?![\p{L}\p{N}_])/iu.test(lower);
+  if (!hasReminderIntent) return null;
 
   const now = new Date();
   let time = null;
@@ -257,8 +260,19 @@ app.post("/chat", async (req, res) => {
       scheduleFollowUp(userId, { ...profile, lastEmotion: emotion });
     }
 
+    // Inyecta en cada turno los datos personales que la persona compartió y
+    // que quedaron guardados en su perfil. Sin esto, el modelo no puede
+    // recuperar gustos aunque memory.js los haya persistido correctamente.
+    const knownLikes = Array.isArray(profile.likes) ? profile.likes : [];
+    const knownNotes = Array.isArray(profile.notes) ? profile.notes : [];
+    const personalContext = [
+      `Nombre: ${profile.name || "no informado"}`,
+      `Gustos e intereses conocidos: ${knownLikes.length ? knownLikes.join(", ") : "todavía no hay datos guardados"}`,
+      `Otros datos compartidos: ${knownNotes.length ? knownNotes.join("; ") : "ninguno"}`
+    ].join("\n");
+
     const response = await askGroq(message, {
-      system: `${BASE_PROMPT}\n${STYLE_RULES}\nNombre de la persona: ${profile.name || "no informado"}. Si conocés su nombre, usalo con naturalidad.`
+      system: `${BASE_PROMPT}\n${STYLE_RULES}\n\nCONTEXTO PERSONAL GUARDADO (usá solamente estos datos; no inventes otros):\n${personalContext}\n\nSi la persona pregunta qué recordás de ella, respondé con los gustos e intereses conocidos. Si un dato no figura en el contexto, decí que todavía no lo tenés registrado. Usá su nombre con naturalidad, sin repetirlo en cada respuesta.`
     });
 
     memory.saveMessage(userId, "assistant", response);

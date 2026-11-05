@@ -41,14 +41,20 @@ function extractUserInfo(text, profile = {}) {
   profile.likes = Array.isArray(profile.likes) ? profile.likes : [];
   profile.notes = Array.isArray(profile.notes) ? profile.notes : [];
 
-  const nameMatch = normalized.match(/\bmi nombre es\s+([^,.!?]+)/i);
-  if (nameMatch) profile.name = nameMatch[1].trim();
+  // Reconoce ambas formas habituales de presentación.
+  const nameMatch = normalized.match(/\b(?:mi nombre es|me llamo)\s+([^,.!?;]+)/i);
+  if (nameMatch) {
+    const name = nameMatch[1].trim().replace(/\s+(?:y|pero)\s+.*$/i, "").trim();
+    if (name) profile.name = name;
+  }
 
-  const likeMatch = normalized.match(/\bme gusta[n]?\s+([^,.!?]+)/i);
+  // Guarda gustos expresados con "me gusta" o "me gustan".
+  const likeMatch = normalized.match(/\bme gusta(?:n)?\s+([^,.!?;]+)/i);
   if (likeMatch) {
-    const like = likeMatch[1].trim();
-    if (like && !profile.likes.some(item => item.toLowerCase() === like.toLowerCase())) {
+    const like = likeMatch[1].trim().replace(/\s+(?:y|pero)\s+.*$/i, "").trim();
+    if (like && !profile.likes.some(item => String(item).toLowerCase() === like.toLowerCase())) {
       profile.likes.push(like);
+      profile.likes = profile.likes.slice(-50);
     }
   }
 
@@ -70,13 +76,11 @@ function saveEmotion(userId, emotion) {
   const data = loadProfiles();
   if (!data[userId]) data[userId] = {};
   const timestamp = new Date().toISOString();
-
   data[userId].lastEmotion = emotion;
   data[userId].lastInteraction = timestamp;
   data[userId].history = Array.isArray(data[userId].history) ? data[userId].history : [];
   data[userId].history.push({ emotion, time: timestamp });
   data[userId].history = data[userId].history.slice(-50);
-
   saveProfiles(data);
 }
 
@@ -86,11 +90,7 @@ function saveMessage(userId, role, text) {
   data[userId].chat = Array.isArray(data[userId].chat) ? data[userId].chat : [];
   const timestamp = new Date().toISOString();
   data[userId].lastInteraction = timestamp;
-  data[userId].chat.push({
-    role,
-    text: String(text),
-    time: timestamp
-  });
+  data[userId].chat.push({ role, text: String(text), time: timestamp });
   data[userId].chat = data[userId].chat.slice(-100);
   saveProfiles(data);
 }
@@ -128,8 +128,7 @@ function savePushSubscription(userId, subscription) {
   const data = loadProfiles();
   if (!data[userId]) data[userId] = {};
   data[userId].pushSubscriptions = Array.isArray(data[userId].pushSubscriptions)
-    ? data[userId].pushSubscriptions
-    : [];
+    ? data[userId].pushSubscriptions : [];
   const endpoint = subscription && subscription.endpoint;
   if (!endpoint) throw new Error("Suscripción push inválida");
   data[userId].pushSubscriptions = data[userId].pushSubscriptions.filter(item => item.endpoint !== endpoint);
@@ -151,17 +150,8 @@ function removePushSubscription(userId, endpoint) {
 }
 
 module.exports = {
-  getProfile,
-  saveProfile,
-  extractUserInfo,
-  saveEmotion,
-  saveReminder,
-  getReminders,
-  setReminders,
-  saveMessage,
-  getChat,
-  getAllUserIds,
-  savePushSubscription,
-  getPushSubscriptions,
-  removePushSubscription
+  getProfile, saveProfile, extractUserInfo, saveEmotion,
+  saveReminder, getReminders, setReminders,
+  saveMessage, getChat, getAllUserIds,
+  savePushSubscription, getPushSubscriptions, removePushSubscription
 };

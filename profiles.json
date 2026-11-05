@@ -425,6 +425,91 @@
         "role": "assistant",
         "text": "Hola Diego, te llamás Diego. No estoy seguro de qué te gusta, pero cuéntame, ¿qué te gusta hacer o disfrutar?",
         "time": "2026-11-04T23:26:57.489Z"
+      },
+      {
+        "role": "user",
+        "text": "Necesito ayuda. Es una emergencia.",
+        "time": "2026-11-04T23:38:04.499Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Estoy con vos. Detecté que necesitás ayuda, pero no pude confirmar el aviso a tu contacto. Si estás en peligro o necesitás atención médica, llamá ahora al servicio local de emergencias y contactá a alguien de confianza.",
+        "time": "2026-11-04T23:38:04.506Z"
+      },
+      {
+        "role": "user",
+        "text": "No me siento bien.",
+        "time": "2026-11-04T23:38:07.710Z"
+      },
+      {
+        "role": "user",
+        "text": "Nora, ¿qué recordás de mí?",
+        "time": "2026-11-04T23:38:13.437Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Claro. ¿A qué hora o dentro de cuánto tiempo querés que te lo recuerde?",
+        "time": "2026-11-04T23:38:13.452Z"
+      },
+      {
+        "role": "user",
+        "text": "Nora, ¿qué recordás de mí?",
+        "time": "2026-11-04T23:38:27.119Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Claro. ¿A qué hora o dentro de cuánto tiempo querés que te lo recuerde?",
+        "time": "2026-11-04T23:38:27.133Z"
+      },
+      {
+        "role": "user",
+        "text": "Nora, ¿qué recordás de mí?",
+        "time": "2026-11-04T23:41:39.891Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Claro. ¿A qué hora o dentro de cuánto tiempo querés que te lo recuerde?",
+        "time": "2026-11-04T23:41:39.902Z"
+      },
+      {
+        "role": "user",
+        "text": "Necesito ayuda. Es una emergencia.",
+        "time": "2026-11-04T23:42:11.066Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Estoy con vos. Detecté que necesitás ayuda, pero no pude confirmar el aviso a tu contacto. Si estás en peligro o necesitás atención médica, llamá ahora al servicio local de emergencias y contactá a alguien de confianza.",
+        "time": "2026-11-04T23:42:11.072Z"
+      },
+      {
+        "role": "user",
+        "text": "No me siento bien.",
+        "time": "2026-11-04T23:42:29.142Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Hola Diego, lamento que no te sientas bien. ¿Qué te pasa exactamente? ¿Te duele algo, te falta el aliento, te sientes mareado? Si es algo grave o sientes que empeora, lo mejor es llamar al 911 (o al número local de emergencias) y avisar a alguien cercano. Mientras tanto, trata de descansar y mantenerte hidratado. ¿Hay algo más que te preocupe?",
+        "time": "2026-11-04T23:42:30.179Z"
+      },
+      {
+        "role": "user",
+        "text": "te acordas lo que me gusta",
+        "time": "2026-11-04T23:44:36.292Z"
+      },
+      {
+        "role": "assistant",
+        "text": "¡Hola, Diego! No guardo recuerdos de lo que me contaste antes, pero dime de nuevo qué te gusta y con gusto hablamos sobre eso.",
+        "time": "2026-11-04T23:44:37.290Z"
+      },
+      {
+        "role": "user",
+        "text": "Nora, ¿qué recordás de mí?",
+        "time": "2026-11-04T23:45:20.180Z"
+      },
+      {
+        "role": "assistant",
+        "text": "Hola, Diego. Recuerdo que te gusta escuchar música. Si necesitas algo más, avísame.",
+        "time": "2026-11-04T23:45:21.299Z"
       }
     ],
     "name": "diego",
@@ -435,7 +520,7 @@
       "Recordame en 2 minutos que tengo que tomar agua"
     ],
     "lastEmotion": "neutral",
-    "lastInteraction": "2026-11-04T23:26:57.489Z",
+    "lastInteraction": "2026-11-04T23:45:21.299Z",
     "history": [
       {
         "emotion": "la clasificación de las emociones en una palabra podría ser:\n\n- feliz: optimista\n- triste: depresivo\n- ansioso: inquieto\n- aburrido: desinteresado\n- neutral: indiferente\n\nasí, según el mensaje \"iniciar conversación\", sería \"indiferente\".",
@@ -532,6 +617,22 @@
       {
         "emotion": "neutral",
         "time": "2026-11-04T23:26:57.124Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:38:07.728Z"
+      },
+      {
+        "emotion": "triste",
+        "time": "2026-11-04T23:42:29.605Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:44:36.814Z"
+      },
+      {
+        "emotion": "neutral",
+        "time": "2026-11-04T23:45:20.814Z"
       }
     ],
     "reminders": [
