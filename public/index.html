@@ -397,16 +397,20 @@ function urlBase64ToUint8Array(base64String) {
 async function pollUpdates() {
   try {
     const reminders = await requestJson(`/reminders/${encodeURIComponent(getUserId())}`);
-    (reminders.reminders || []).forEach(item => {
+    for (const item of (reminders.reminders || [])) {
       addMessage(`⏰ Recordatorio: ${item.text}`, "bot");
-      if (Notification.permission === "granted") {
-        if (serviceWorkerRegistration) {
-          serviceWorkerRegistration.showNotification("NORA", { body: item.text });
-        } else {
-          new Notification("NORA", { body: item.text });
-        }
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          if (serviceWorkerRegistration) {
+            await serviceWorkerRegistration.showNotification("NORA", { body: item.text });
+          } else {
+            new Notification("NORA", { body: item.text });
+          }
+        } catch (_) {}
       }
-    });
+      // Se confirma después de que la interfaz pudo presentar el aviso.
+      await requestJson(`/reminders/${encodeURIComponent(getUserId())}/${encodeURIComponent(item.id)}/ack`, { method: "POST" });
+    }
   } catch (_) {}
 
   try {

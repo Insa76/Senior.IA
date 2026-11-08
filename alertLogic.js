@@ -1,20 +1,13 @@
+const VALID = new Set(["feliz", "triste", "ansioso", "aburrido", "neutral"]);
+
 function analyzeRisk(history = []) {
-
-  if (history.length < 3) return "normal";
-
-  const last = history.slice(-3).map(h => h.emotion);
-
-  // 🔴 alto riesgo
-  if (last.every(e => e === "triste")) {
-    return "alto";
-  }
-
-  // 🟡 atención
-  if (last.filter(e => e === "ansioso").length >= 2) {
-    return "medio";
-  }
-
+  const valid = (Array.isArray(history) ? history : [])
+    .filter(item => item && VALID.has(String(item.emotion || "").toLowerCase()))
+    .slice(-3)
+    .map(item => String(item.emotion).toLowerCase());
+  if (valid.length < 3) return "normal";
+  if (valid.every(emotion => emotion === "triste")) return "alto";
+  if (valid.filter(emotion => emotion === "ansioso").length >= 2) return "medio";
   return "normal";
 }
-
 module.exports = analyzeRisk;

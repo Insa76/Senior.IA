@@ -36,6 +36,10 @@ Para detener el servidor: `Ctrl + C`.
 - `WHATSAPP_API_VERSION`: versión de Graph API; por defecto `v26.0`.
 - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`: configuración de Web Push.
 - `PORT`: Render define esta variable automáticamente; localmente el servidor usa 3000.
+- `DATABASE_URL`: cadena de conexión PostgreSQL. Si está definida, SeniorIA utiliza PostgreSQL; si está vacía, usa `profiles.json` local.
+- `DATABASE_SSL`: mantener `true` para proveedores PostgreSQL administrados; por defecto se habilita SSL.
+- `PG_POOL_MAX`: máximo de conexiones del pool; por defecto 5.
+- `SENIORIA_DATA_DIR`: carpeta local de `profiles.json`; por defecto es la raíz del proyecto.
 
 No subir `.env`, `profiles.json` ni credenciales al repositorio.
 
@@ -44,18 +48,24 @@ No subir `.env`, `profiles.json` ni credenciales al repositorio.
 - `/health`: estado básico del servidor y configuración (sin revelar secretos).
 - `/login.html`: ingreso y creación de identificador.
 - `/?userId=...`: conversación de NORA.
-- `/family.html?userId=...`: panel familiar.
-- `/chat`, `/chat-history/:userId`, `/family/:userId`.
+- `/family.html?userId=...#token=...`: panel familiar con token independiente.
+- `POST /accounts`: crea un identificador aleatorio y un token familiar.
+- `/chat`, `/chat-history/:userId`, `/family/:userId` (este último requiere `Authorization: Bearer <token>`).
 - `/reminders/:userId`, `/follow-up/:userId`.
 - `/push/public-key`, `/subscribe/:userId`.
 
 ## Importante antes de usar con personas reales
 
-- El identificador `userId` no es autenticación. Cualquier persona que conozca el identificador puede consultar el panel familiar. No usar datos reales sensibles hasta implementar autenticación y autorización.
-- `profiles.json` sirve para pruebas locales, pero el disco de un servicio Render gratuito puede ser efímero. Para producción, migrar perfiles, mensajes, recordatorios y suscripciones a una base de datos persistente.
-- Los recordatorios se procesan mientras el proceso Node está activo. Si Render suspende el servicio, la ejecución se pausa; no es un servicio crítico de recordatorios.
+- En modo local, los datos se guardan en `profiles.json` dentro de `SENIORIA_DATA_DIR`. En producción se recomienda PostgreSQL mediante `DATABASE_URL`. La aplicación crea la tabla `senioria_profiles` al iniciar e importa automáticamente `profiles.json` una sola vez cuando la tabla está vacía y el archivo está presente. La migración no borra ni modifica el archivo original.
+- Para migrar los datos locales a PostgreSQL: conservar `profiles.json`, colocar la cadena PostgreSQL en `.env` como `DATABASE_URL`, ejecutar `npm install` y luego `npm run migrate:profiles`. El comando informa cuántos perfiles quedaron disponibles. Después se configura esa misma `DATABASE_URL` como variable de entorno en Render. No compartir la cadena de conexión ni subir `.env` a GitHub.
+- Neon ofrece un plan gratuito de PostgreSQL con límites de cómputo, almacenamiento y transferencia; el cómputo se suspende tras inactividad, pero los datos permanecen almacenados. Revisar los límites vigentes antes de adoptarlo. El servicio puede tardar unos instantes en reactivarse al recibir una conexión.
+- Los recordatorios vencidos quedan en una cola persistida hasta que el navegador confirma que pudo presentarlos. Esto evita perderlos al reiniciar el proceso, pero no garantiza puntualidad: el proceso debe estar activo para detectarlos. En planes que suspenden el servicio, la revisión se pausa. No es un servicio crítico de medicación ni reemplaza alarmas médicas.
+- Los seguimientos emocionales automáticos usan temporizadores en memoria y se pierden si el servidor se reinicia antes de ejecutarlos.
+- WhatsApp utiliza un único destinatario global (`WHATSAPP_TO`) para todos los usuarios. No hay todavía contactos familiares configurables por cuenta; no desplegar con múltiples familias hasta resolver esa separación.
+- Las cuentas nuevas se crean en el servidor con un identificador aleatorio y un token familiar independiente. El token se almacena como hash y el panel lo valida en cada consulta. El enlace familiar es una credencial: compartilo solo con la persona autorizada. Las cuentas antiguas no tienen ese token y no pueden abrir el panel protegido; no se habilita un bypass automático.
+- El acceso de la persona mayor a la conversación sigue dependiendo de mantener privado su identificador aleatorio. Todavía no hay cuentas con contraseña, recuperación de acceso, revocación/rotación de enlaces familiares ni roles múltiples. No considerar esto equivalente a un sistema de identidad empresarial.
+- El historial emocional se normaliza a cinco categorías permitidas; el análisis de riesgo es heurístico y no clínico. No interpretar los estados como evaluación médica ni como garantía de que no existe riesgo.
 - Web Push requiere HTTPS (localhost también está permitido por el navegador), permiso del usuario y claves VAPID.
-- La clasificación emocional es orientativa, no clínica.
 - Las alertas por WhatsApp solo se consideran enviadas cuando Meta confirma la solicitud. Configurar y probar el destinatario antes de una demostración.
 - La detección de emergencias por palabras clave no reemplaza una central de emergencias ni garantiza detectar todos los casos.
 
@@ -65,7 +75,7 @@ No subir `.env`, `profiles.json` ni credenciales al repositorio.
 npm run check
 ```
 
-Esto valida sintaxis de los archivos principales del servidor. No prueba credenciales externas ni el envío real de WhatsApp, Groq o Push.
+`npm run check` valida la sintaxis de los módulos JavaScript principales. `npm test` ejecuta pruebas automatizadas de persistencia de emociones y ciclo de entrega de recordatorios. Ninguna de estas pruebas valida credenciales externas ni el envío real de WhatsApp, Groq o Push.
 
 ## Carpetas heredadas
 

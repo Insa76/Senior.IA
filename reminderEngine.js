@@ -7,7 +7,7 @@ let pendingConfirmations = {}; // 🔥 control de confirmaciones
 
 function startReminderEngine() {
 
-  setInterval(() => {
+  setInterval(async () => {
 
     const now = new Date();
     const hour = now.getHours();
@@ -15,7 +15,7 @@ function startReminderEngine() {
 
     const userId = "web-user"; // luego lo hacemos dinámico
 
-    const reminders = getReminders(userId);
+    const reminders = await getReminders(userId);
 
     reminders.forEach(r => {
 

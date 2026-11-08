@@ -76,12 +76,13 @@ button {
 
 <h1>Ingresar</h1>
 
-<input id="userId" placeholder="Nombre del usuario (ej: juan)" />
+<input id="userId" placeholder="Identificador de una cuenta existente" />
 
-<button id="generateBtn" onclick="generateUser()">Generar usuario</button>
+<button id="generateBtn" onclick="generateUser()">Generar identificador seguro</button>
 
 <div id="generatedId"></div>
 <div id="familyLink"></div>
+<p style="font-size:13px;color:#555">La cuenta nueva genera un identificador aleatorio y un enlace familiar protegido. Compartí ese enlace solo con personas autorizadas. Si ingresás un identificador antiguo, el acceso familiar protegido no estará disponible.</p>
 
 <button id="copyBtn" onclick="copyLink()">Copiar link familiar</button>
 
@@ -91,6 +92,7 @@ button {
 
 <script>
 let familyUrl = "";
+let generatedAccount = null;
 
 function normalizedUserId() {
   return document.getElementById("userId").value.trim();
@@ -98,44 +100,66 @@ function normalizedUserId() {
 
 function updateFamilyLink() {
   const userId = normalizedUserId();
-  if (!userId) {
-    familyUrl = "";
-    document.getElementById("familyLink").textContent = "";
-    return;
-  }
-  familyUrl = `${window.location.origin}/family.html?userId=${encodeURIComponent(userId)}`;
-  document.getElementById("familyLink").textContent = `Link para el familiar: ${familyUrl}`;
+  const token = generatedAccount && generatedAccount.userId === userId
+    ? generatedAccount.familyToken
+    : (localStorage.getItem("userId") === userId ? localStorage.getItem("familyToken") : "");
+  familyUrl = token
+    ? `${window.location.origin}/family.html?userId=${encodeURIComponent(userId)}#token=${encodeURIComponent(token)}`
+    : "";
+  document.getElementById("familyLink").textContent = familyUrl
+    ? `Link familiar protegido: ${familyUrl}`
+    : "Generá una cuenta nueva para crear un enlace familiar protegido.";
 }
 
-function login() {
+async function login() {
   const userId = normalizedUserId();
-  if (!userId) return alert("Ingresá un nombre o identificador.");
-  if (userId.length > 80 || /[\/\\\\?#]/.test(userId)) {
-    return alert("Usá un identificador de hasta 80 caracteres, sin /, \\, ? ni #.");
+  if (!userId) return alert("Generá una cuenta nueva o ingresá un identificador existente.");
+  if (userId.length > 80 || /[\/\\?#]/.test(userId)) return alert("El identificador no es válido.");
+
+  const previousUserId = localStorage.getItem("userId");
+  if (generatedAccount && generatedAccount.userId === userId) {
+    localStorage.setItem("userId", userId);
+    localStorage.setItem("familyToken", generatedAccount.familyToken);
+  } else {
+    localStorage.setItem("userId", userId);
+    if (previousUserId !== userId) localStorage.removeItem("familyToken");
   }
-  localStorage.setItem("userId", userId);
   window.location.href = `/?userId=${encodeURIComponent(userId)}`;
 }
 
-function generateUser() {
-  const id = "user-" + Math.floor(100000 + Math.random() * 900000);
-  document.getElementById("userId").value = id;
-  document.getElementById("generatedId").textContent = "ID generado: " + id;
-  updateFamilyLink();
+async function generateUser() {
+  const button = document.getElementById("generateBtn");
+  button.disabled = true;
+  button.textContent = "Creando cuenta…";
+  try {
+    const response = await fetch("/accounts", { method: "POST" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "No se pudo crear la cuenta.");
+    generatedAccount = data;
+    document.getElementById("userId").value = data.userId;
+    document.getElementById("generatedId").textContent = "Identificador seguro creado. Guardalo: " + data.userId;
+    updateFamilyLink();
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Generar identificador seguro";
+  }
 }
 
 async function copyLink() {
   updateFamilyLink();
-  if (!familyUrl) return alert("Primero ingresá o generá un usuario.");
+  if (!familyUrl) return alert("Primero generá una cuenta nueva.");
   try {
     await navigator.clipboard.writeText(familyUrl);
-    alert("Link familiar copiado.");
+    alert("Link familiar protegido copiado.");
   } catch (_) {
-    window.prompt("Copiá este link para el familiar:", familyUrl);
+    window.prompt("Copiá este link y compartilo solo con el familiar autorizado:", familyUrl);
   }
 }
 
 document.getElementById("userId").addEventListener("input", updateFamilyLink);
+updateFamilyLink();
 </script>
 
 </body>

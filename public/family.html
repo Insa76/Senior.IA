@@ -44,6 +44,7 @@
 <body>
 
 <h1>👨‍👩‍👧 Panel Familiar</h1>
+<p style="max-width:900px;margin:0 auto 16px;color:#555;text-align:center;font-size:14px">Este panel muestra indicadores orientativos. No es un diagnóstico ni un servicio de vigilancia o emergencias.</p>
 
 <div id="statusBox" class="status">Cargando...</div>
 
@@ -77,6 +78,10 @@
 <script>
 let chart = null;
 const userId = new URLSearchParams(window.location.search).get("userId");
+const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+const familyToken = hashParams.get("token") || "";
+// El secreto queda fuera de la URL enviada al servidor y del historial visible.
+if (window.location.hash) history.replaceState(null, "", window.location.pathname + window.location.search);
 
 function setStatus(status) {
   const box = document.getElementById("statusBox");
@@ -97,8 +102,13 @@ async function loadData() {
   }
 
   try {
-    const response = await fetch(`/family/${encodeURIComponent(userId)}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const response = await fetch(`/family/${encodeURIComponent(userId)}`, {
+      headers: { Authorization: `Bearer ${familyToken}` }
+    });
+    if (!response.ok) {
+      if (response.status === 403) throw new Error("Enlace familiar inválido o antiguo. Pedile al usuario que genere una cuenta nueva y comparta el enlace protegido.");
+      throw new Error(`HTTP ${response.status}`);
+    }
     const data = await response.json();
 
     document.getElementById("name").textContent = data.name || "-";

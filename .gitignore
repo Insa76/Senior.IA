@@ -4,6 +4,7 @@
 !.env.example
 profiles.json
 profiles.json.tmp
+data/
 
 # Dependencias y builds
 node_modules/

@@ -14,6 +14,17 @@ const { addReminder, checkReminders } = require("./reminderService");
 const webpush = require("web-push");
 
 const app = express();
+// Express 4 no captura automáticamente rechazos de handlers async.
+for (const method of ["get", "post"]) {
+  const register = app[method].bind(app);
+  app[method] = (...args) => {
+    const handler = args[args.length - 1];
+    if (typeof handler === "function" && handler.constructor.name === "AsyncFunction") {
+      args[args.length - 1] = (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+    }
+    return register(...args);
+  };
+}
 const PORT = Number(process.env.PORT) || 3000;
 const BASE_PROMPT = `
 Te llamás NORA. Sos una acompañante conversacional para personas mayores.
@@ -44,8 +55,6 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
   }
 }
 
-const pendingNotifications = new Map();
-
 function validUserId(value) {
   return typeof value === "string" &&
     value.trim().length > 0 &&
@@ -53,15 +62,9 @@ function validUserId(value) {
     !/[\/\\\\?#]/.test(value);
 }
 
-function enqueueNotification(userId, item) {
-  const current = pendingNotifications.get(userId) || [];
-  current.push(item);
-  pendingNotifications.set(userId, current.slice(-30));
-}
-
 async function sendPushToUser(userId, message) {
   if (!pushConfigured) return;
-  const subscriptions = memory.getPushSubscriptions(userId);
+  const subscriptions = await memory.getPushSubscriptions(userId);
 
   await Promise.all(subscriptions.map(async subscription => {
     try {
@@ -72,7 +75,7 @@ async function sendPushToUser(userId, message) {
       }));
     } catch (error) {
       if (error.statusCode === 404 || error.statusCode === 410) {
-        memory.removePushSubscription(userId, subscription.endpoint);
+        await memory.removePushSubscription(userId, subscription.endpoint);
       } else {
         console.error("Error enviando push:", error.message);
       }
@@ -83,19 +86,14 @@ async function sendPushToUser(userId, message) {
 // Revisa recordatorios aunque la pantalla de NORA no esté abierta.
 // En servicios gratuitos que suspenden el proceso, el chequeo se pausa mientras duermen.
 async function processDueReminders() {
-  for (const userId of memory.getAllUserIds()) {
-    const due = checkReminders(userId);
+  for (const userId of await memory.getAllUserIds()) {
+    const due = await checkReminders(userId);
     for (const reminder of due) {
-      enqueueNotification(userId, reminder);
       await sendPushToUser(userId, reminder.text);
-      console.log(`Recordatorio vencido para ${userId}.`);
+      console.log(`Recordatorio pendiente de entrega para ${userId}.`);
     }
   }
 }
-const reminderTimer = setInterval(() => {
-  processDueReminders().catch(error => console.error("Error revisando recordatorios:", error.message));
-}, 15000);
-if (typeof reminderTimer.unref === "function") reminderTimer.unref();
 
 function parseReminder(message) {
   const lower = message.toLowerCase();
@@ -108,8 +106,8 @@ function parseReminder(message) {
   let time = null;
   let repeat = null;
 
-  const minutes = lower.match(/\ben (\d{1,3}) minutos?\b/);
-  const hoursAhead = lower.match(/\ben (\d{1,2}) horas?\b/);
+  const minutes = lower.match(/\b(?:en|dentro de) (\d{1,3}) minutos?\b/);
+  const hoursAhead = lower.match(/\b(?:en|dentro de) (\d{1,2}) horas?\b/);
   const hour = lower.match(/\ba las (\d{1,2})(?::(\d{2}))?\b/);
 
   if (minutes) {
@@ -140,7 +138,7 @@ function parseReminder(message) {
   return { time, repeat };
 }
 
-app.get("/health", (req, res) => {
+app.get("/health", async (req, res) => {
   res.json({
     status: "ok",
     service: "SeniorIA",
@@ -150,8 +148,19 @@ app.get("/health", (req, res) => {
       process.env.WHATSAPP_PHONE_NUMBER_ID &&
       process.env.WHATSAPP_TO
     ),
-    pushConfigured
+    pushConfigured,
+    storage: memory.storageMode()
   });
+});
+
+app.post("/accounts", async (req, res) => {
+  try {
+    const account = await memory.createAccount();
+    res.status(201).json(account);
+  } catch (error) {
+    console.error("No se pudo crear la cuenta:", error.message);
+    res.status(500).json({ error: "No se pudo crear el usuario." });
+  }
 });
 
 app.get("/push/public-key", (req, res) => {
@@ -159,11 +168,11 @@ app.get("/push/public-key", (req, res) => {
   res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
 });
 
-app.post("/subscribe/:userId", (req, res) => {
+app.post("/subscribe/:userId", async (req, res) => {
   const { userId } = req.params;
   if (!validUserId(userId)) return res.status(400).json({ error: "Usuario inválido." });
   try {
-    memory.savePushSubscription(userId, req.body);
+    await memory.savePushSubscription(userId, req.body);
     res.status(201).json({ ok: true });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -175,12 +184,18 @@ app.get("/follow-up/:userId", (req, res) => {
   res.json({ messages: getFollowUps(req.params.userId) });
 });
 
-app.get("/family/:userId", (req, res) => {
+app.get("/family/:userId", async (req, res) => {
   const { userId } = req.params;
   if (!validUserId(userId)) return res.status(400).json({ error: "Usuario inválido." });
+  const authorization = req.get("authorization") || "";
+  const familyToken = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!(await memory.verifyFamilyToken(userId, familyToken))) {
+    return res.status(403).json({ error: "El enlace familiar no es válido o fue creado con una versión anterior. Generá una cuenta nueva para obtener un enlace protegido." });
+  }
 
-  const profile = memory.getProfile(userId);
-  const risk = analyzeRisk(profile.history || []);
+  const profile = await memory.getProfile(userId);
+  const history = memory.getValidHistory(profile.history || []);
+  const risk = analyzeRisk(history);
   const status = risk === "alto" ? "urgente" : risk === "medio" ? "atencion" : "normal";
 
   res.json({
@@ -188,17 +203,24 @@ app.get("/family/:userId", (req, res) => {
     emotion: profile.lastEmotion || "desconocido",
     lastInteraction: profile.lastInteraction || "sin datos",
     likes: profile.likes || [],
-    history: profile.history || [],
+    history,
     status
   });
 });
 
-app.get("/reminders/:userId", (req, res) => {
+app.get("/reminders/:userId", async (req, res) => {
   const { userId } = req.params;
   if (!validUserId(userId)) return res.status(400).json({ reminders: [] });
-  const reminders = pendingNotifications.get(userId) || [];
-  pendingNotifications.delete(userId);
-  res.json({ reminders });
+  res.json({ reminders: await memory.getPendingNotifications(userId) });
+});
+
+app.post("/reminders/:userId/:reminderId/ack", async (req, res) => {
+  const { userId, reminderId } = req.params;
+  if (!validUserId(userId) || typeof reminderId !== "string" || reminderId.length > 100) {
+    return res.status(400).json({ error: "Solicitud inválida." });
+  }
+  const acknowledged = await memory.acknowledgeNotification(userId, reminderId);
+  res.json({ ok: acknowledged });
 });
 
 app.post("/chat", async (req, res) => {
@@ -209,7 +231,7 @@ app.post("/chat", async (req, res) => {
   if (!message) return res.status(400).json({ error: "Escribí un mensaje." });
   if (message.length > 4000) return res.status(413).json({ error: "El mensaje es demasiado largo." });
 
-  memory.saveMessage(userId, "user", message);
+  await memory.saveMessage(userId, "user", message);
 
   if (detectEmergency(message)) {
     let alertSent = false;
@@ -221,18 +243,18 @@ app.post("/chat", async (req, res) => {
     }
 
     const reply = alertSent
-      ? "Estoy con vos. Ya envié una alerta a tu contacto de confianza. Si estás en peligro o necesitás atención médica, llamá también al servicio local de emergencias."
+      ? "Estoy con vos. El servicio de WhatsApp aceptó el envío del aviso, pero eso no confirma que tu contacto lo haya leído. Si estás en peligro o necesitás atención médica, llamá ahora al servicio local de emergencias y contactá directamente a alguien de confianza."
       : "Estoy con vos. Detecté que necesitás ayuda, pero no pude confirmar el aviso a tu contacto. Si estás en peligro o necesitás atención médica, llamá ahora al servicio local de emergencias y contactá a alguien de confianza.";
 
-    memory.saveMessage(userId, "assistant", reply);
+    await memory.saveMessage(userId, "assistant", reply);
     return res.json({ reply, emergency: true, alertSent });
   }
 
   try {
-    let profile = memory.getProfile(userId);
+    let profile = await memory.getProfile(userId);
     if (!profile.name) profile.name = userId;
     profile = memory.extractUserInfo(message, profile);
-    memory.saveProfile(userId, profile);
+    await memory.saveProfile(userId, profile);
 
     const reminderRequest = parseReminder(message);
     if (reminderRequest) {
@@ -242,19 +264,19 @@ app.post("/chat", async (req, res) => {
       } else if (reminderRequest.needsTime) {
         reply = "Claro. ¿A qué hora o dentro de cuánto tiempo querés que te lo recuerde?";
       } else {
-        addReminder(userId, message, reminderRequest.time, reminderRequest.repeat);
+        await addReminder(userId, message, reminderRequest.time, reminderRequest.repeat);
         const formatted = reminderRequest.time.toLocaleString("es-AR", {
           dateStyle: "short",
           timeStyle: "short"
         });
         reply = `Perfecto, lo agendé para ${formatted}${reminderRequest.repeat ? " y se repetirá todos los días" : ""}.`;
       }
-      memory.saveMessage(userId, "assistant", reply);
+      await memory.saveMessage(userId, "assistant", reply);
       return res.json({ reply, reminder: true });
     }
 
     const emotion = await detectEmotionAI(message);
-    memory.saveEmotion(userId, emotion);
+    await memory.saveEmotion(userId, emotion);
 
     if (emotion === "triste" || emotion === "ansioso") {
       scheduleFollowUp(userId, { ...profile, lastEmotion: emotion });
@@ -275,7 +297,7 @@ app.post("/chat", async (req, res) => {
       system: `${BASE_PROMPT}\n${STYLE_RULES}\n\nCONTEXTO PERSONAL GUARDADO (usá solamente estos datos; no inventes otros):\n${personalContext}\n\nSi la persona pregunta qué recordás de ella, respondé con los gustos e intereses conocidos. Si un dato no figura en el contexto, decí que todavía no lo tenés registrado. Usá su nombre con naturalidad, sin repetirlo en cada respuesta.`
     });
 
-    memory.saveMessage(userId, "assistant", response);
+    await memory.saveMessage(userId, "assistant", response);
     res.json({ reply: response });
   } catch (error) {
     console.error("Error procesando chat:", error.message);
@@ -285,10 +307,10 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-app.get("/chat-history/:userId", (req, res) => {
+app.get("/chat-history/:userId", async (req, res) => {
   const { userId } = req.params;
   if (!validUserId(userId)) return res.status(400).json({ chat: [] });
-  res.json({ chat: memory.getChat(userId) });
+  res.json({ chat: await memory.getChat(userId) });
 });
 
 app.use((error, req, res, next) => {
@@ -297,13 +319,30 @@ app.use((error, req, res, next) => {
   res.status(500).json({ error: "Error interno del servidor." });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`SeniorIA escuchando en http://localhost:${PORT}`);
-});
+let server;
+let reminderTimer;
 
-function shutdown() {
-  clearInterval(reminderTimer);
-  server.close(() => process.exit(0));
+async function start() {
+  await memory.init();
+  server = app.listen(PORT, () => {
+    console.log(`SeniorIA escuchando en http://localhost:${PORT}`);
+  });
+  reminderTimer = setInterval(() => {
+    processDueReminders().catch(error => console.error("Error revisando recordatorios:", error.message));
+  }, 15000);
+  if (typeof reminderTimer.unref === "function") reminderTimer.unref();
+}
+
+async function shutdown() {
+  if (reminderTimer) clearInterval(reminderTimer);
+  if (server) server.close();
+  await memory.close();
+  process.exit(0);
 }
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
+
+start().catch(error => {
+  console.error("No se pudo iniciar SeniorIA:", error.message);
+  process.exit(1);
+});
