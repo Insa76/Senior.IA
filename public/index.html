@@ -245,7 +245,13 @@ function speak(text) {
   if (!soundEnabled || !("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
 
-  const cleaned = String(text || "").replace(/\([^)]*\)/g, "").trim();
+  const cleaned = String(text || "")
+    .replace(/\([^)]*\)/g, "")
+    // Los emojis se mantienen en el chat, pero se excluyen del texto enviado al sintetizador.
+    .replace(/[#*0-9]\uFE0F?\u20E3/gu, " ")
+    .replace(/[\p{Extended_Pictographic}\p{Regional_Indicator}\uFE0E\uFE0F\u200D\u{1F3FB}-\u{1F3FF}\u20E3]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!cleaned) return;
 
   const utterance = new SpeechSynthesisUtterance(cleaned);
