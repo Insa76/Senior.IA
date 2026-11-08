@@ -415,10 +415,11 @@ async function pollUpdates() {
 
   try {
     const followUps = await requestJson(`/follow-up/${encodeURIComponent(getUserId())}`);
-    (followUps.messages || []).forEach(message => {
-      addMessage(message, "bot");
-      speak(message);
-    });
+    for (const item of (followUps.messages || [])) {
+      addMessage(item.text, "bot");
+      speak(item.text);
+      await requestJson(`/follow-up/${encodeURIComponent(getUserId())}/${encodeURIComponent(item.id)}/ack`, { method: "POST" });
+    }
   } catch (_) {}
 }
 

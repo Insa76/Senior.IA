@@ -8,7 +8,7 @@ const detectEmotionAI = require("./emotionService");
 const memory = require("./memory");
 const detectEmergency = require("./emergencyService");
 const sendAlert = require("./alertService");
-const { scheduleFollowUp, getFollowUps } = require("./followUpService");
+const { scheduleFollowUp, processDueFollowUps, getFollowUps, acknowledgeFollowUp } = require("./followUpService");
 const analyzeRisk = require("./alertLogic");
 const { addReminder, checkReminders } = require("./reminderService");
 const webpush = require("web-push");
@@ -87,11 +87,28 @@ async function sendPushToUser(userId, message) {
 // En servicios gratuitos que suspenden el proceso, el chequeo se pausa mientras duermen.
 async function processDueReminders() {
   for (const userId of await memory.getAllUserIds()) {
-    const due = await checkReminders(userId);
-    for (const reminder of due) {
-      await sendPushToUser(userId, reminder.text);
-      console.log(`Recordatorio pendiente de entrega para ${userId}.`);
+    try {
+      const due = await checkReminders(userId);
+      for (const reminder of due) {
+        await sendPushToUser(userId, reminder.text);
+        console.log(`Recordatorio pendiente de entrega para ${userId}.`);
+      }
+    } catch (error) {
+      console.error(`Error revisando recordatorios de ${userId}:`, error.message);
     }
+  }
+}
+
+let backgroundTaskRunning = false;
+async function processBackgroundTasks() {
+  // Evita que dos ciclos del mismo proceso reclamen o envíen la misma tarea en paralelo.
+  if (backgroundTaskRunning) return;
+  backgroundTaskRunning = true;
+  try {
+    await processDueReminders();
+    await processDueFollowUps();
+  } finally {
+    backgroundTaskRunning = false;
   }
 }
 
@@ -179,9 +196,18 @@ app.post("/subscribe/:userId", async (req, res) => {
   }
 });
 
-app.get("/follow-up/:userId", (req, res) => {
+app.get("/follow-up/:userId", async (req, res) => {
   if (!validUserId(req.params.userId)) return res.status(400).json({ messages: [] });
-  res.json({ messages: getFollowUps(req.params.userId) });
+  const messages = await getFollowUps(req.params.userId);
+  res.json({ messages });
+});
+
+app.post("/follow-up/:userId/:followUpId/ack", async (req, res) => {
+  const { userId, followUpId } = req.params;
+  if (!validUserId(userId) || typeof followUpId !== "string" || followUpId.length > 100) {
+    return res.status(400).json({ error: "Solicitud inválida." });
+  }
+  res.json({ ok: await acknowledgeFollowUp(userId, followUpId) });
 });
 
 app.get("/family/:userId", async (req, res) => {
@@ -279,7 +305,7 @@ app.post("/chat", async (req, res) => {
     await memory.saveEmotion(userId, emotion);
 
     if (emotion === "triste" || emotion === "ansioso") {
-      scheduleFollowUp(userId, { ...profile, lastEmotion: emotion });
+      await scheduleFollowUp(userId, { ...profile, lastEmotion: emotion });
     }
 
     // Inyecta en cada turno los datos personales que la persona compartió y
@@ -327,8 +353,10 @@ async function start() {
   server = app.listen(PORT, () => {
     console.log(`SeniorIA escuchando en http://localhost:${PORT}`);
   });
+  // Recupera tareas vencidas inmediatamente al iniciar y luego cada 15 segundos.
+  processBackgroundTasks().catch(error => console.error("Error procesando tareas pendientes:", error.message));
   reminderTimer = setInterval(() => {
-    processDueReminders().catch(error => console.error("Error revisando recordatorios:", error.message));
+    processBackgroundTasks().catch(error => console.error("Error procesando tareas pendientes:", error.message));
   }, 15000);
   if (typeof reminderTimer.unref === "function") reminderTimer.unref();
 }

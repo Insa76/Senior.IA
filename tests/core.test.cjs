@@ -48,3 +48,30 @@ test("no vuelve a encolar un recordatorio ya notificado", async () => {
   assert.equal((await checkReminders("test-user-2")).length, 1);
   assert.equal((await checkReminders("test-user-2")).length, 0);
 });
+
+test("los seguimientos emocionales quedan persistidos y se recuperan como pendientes", async () => {
+  const { scheduleFollowUp, processDueFollowUps, getFollowUps, acknowledgeFollowUp } = require("../followUpService");
+  await scheduleFollowUp("follow-user", { lastEmotion: "triste" });
+  const stored = await memory.getProfile("follow-user");
+  assert.equal(stored.followUpJobs.length, 1);
+  assert.equal(stored.followUpJobs[0].status, "pending");
+
+  const processed = await processDueFollowUps({
+    now: Date.now() + 61000,
+    generateMessage: async () => "Hola, ¿cómo te estás sintiendo ahora?"
+  });
+  assert.equal(processed, 1);
+  const messages = await getFollowUps("follow-user");
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].text, "Hola, ¿cómo te estás sintiendo ahora?");
+  assert.equal(await acknowledgeFollowUp("follow-user", messages[0].id), true);
+  assert.equal((await getFollowUps("follow-user")).length, 0);
+});
+
+test("evita programar seguimientos emocionales duplicados mientras hay uno activo", async () => {
+  const { scheduleFollowUp } = require("../followUpService");
+  await scheduleFollowUp("follow-user-duplicate", { lastEmotion: "ansioso" });
+  await scheduleFollowUp("follow-user-duplicate", { lastEmotion: "triste" });
+  const profile = await memory.getProfile("follow-user-duplicate");
+  assert.equal(profile.followUpJobs.length, 1);
+});

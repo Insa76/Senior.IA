@@ -239,6 +239,79 @@ async function acknowledgeNotification(userId, notificationId) {
   });
   return acknowledged;
 }
+
+async function scheduleFollowUpJob(userId, emotion, dueAt) {
+  const id = crypto.randomUUID();
+  await updateProfile(userId, profile => {
+    const jobs = Array.isArray(profile.followUpJobs) ? profile.followUpJobs : [];
+    // Un solo seguimiento pendiente por persona: evita acumular avisos por mensajes consecutivos.
+    const active = jobs.some(job => job.status === 'pending' || job.status === 'processing');
+    if (!active) jobs.push({ id, emotion, dueAt, status: 'pending', attempts: 0, createdAt: new Date().toISOString() });
+    profile.followUpJobs = jobs.slice(-20);
+    return profile;
+  });
+  const profile = await getProfile(userId);
+  return (profile.followUpJobs || []).find(job => job.id === id) || null;
+}
+async function getDueFollowUpJob(userId, now = Date.now()) {
+  let claimed = null;
+  await updateProfile(userId, profile => {
+    const jobs = Array.isArray(profile.followUpJobs) ? profile.followUpJobs : [];
+    const job = jobs.find(item => {
+      if (item.status === 'pending') return new Date(item.dueAt).getTime() <= now;
+      if (item.status === 'processing') return now - new Date(item.processingAt || 0).getTime() > 5 * 60 * 1000;
+      return false;
+    });
+    if (job) {
+      job.status = 'processing'; job.processingAt = new Date(now).toISOString();
+      job.attempts = Number(job.attempts || 0) + 1;
+      claimed = { ...job };
+    }
+    profile.followUpJobs = jobs;
+    return profile;
+  });
+  return claimed;
+}
+async function completeFollowUpJob(userId, jobId, message) {
+  return updateProfile(userId, profile => {
+    const jobs = Array.isArray(profile.followUpJobs) ? profile.followUpJobs : [];
+    const job = jobs.find(item => item.id === jobId);
+    if (job) job.status = 'sent';
+    const queue = Array.isArray(profile.pendingFollowUps) ? profile.pendingFollowUps : [];
+    if (!queue.some(item => item.id === jobId)) queue.push({ id: jobId, text: String(message), createdAt: new Date().toISOString() });
+    profile.pendingFollowUps = queue.slice(-30);
+    profile.followUpJobs = jobs.slice(-20);
+    return profile;
+  });
+}
+async function retryFollowUpJob(userId, jobId, maxAttempts = 3) {
+  return updateProfile(userId, profile => {
+    const jobs = Array.isArray(profile.followUpJobs) ? profile.followUpJobs : [];
+    const job = jobs.find(item => item.id === jobId);
+    if (job) {
+      if (Number(job.attempts || 0) >= maxAttempts) job.status = 'failed';
+      else { job.status = 'pending'; job.dueAt = new Date(Date.now() + Math.min(15, 2 ** job.attempts) * 60000).toISOString(); }
+      delete job.processingAt;
+    }
+    profile.followUpJobs = jobs;
+    return profile;
+  });
+}
+async function getPendingFollowUps(userId) {
+  const queue = (await getProfile(userId)).pendingFollowUps;
+  return Array.isArray(queue) ? queue : [];
+}
+async function acknowledgeFollowUp(userId, followUpId) {
+  let acknowledged = false;
+  await updateProfile(userId, profile => {
+    const queue = Array.isArray(profile.pendingFollowUps) ? profile.pendingFollowUps : [];
+    acknowledged = queue.some(item => item.id === followUpId);
+    profile.pendingFollowUps = queue.filter(item => item.id !== followUpId);
+    return profile;
+  });
+  return acknowledged;
+}
+
 async function createAccount() {
   const userId = `u-${crypto.randomBytes(32).toString('hex')}`;
   const familyToken = crypto.randomBytes(32).toString('hex');
@@ -279,5 +352,5 @@ module.exports = {
   saveReminder, getReminders, setReminders, saveMessage, getChat, getAllUserIds,
   savePushSubscription, getPushSubscriptions, removePushSubscription,
   normalizeEmotion, getValidHistory, enqueuePendingNotification, getPendingNotifications,
-  acknowledgeNotification, createAccount, verifyFamilyToken, storageMode: () => usePostgres ? 'postgres' : 'json'
+  acknowledgeNotification, scheduleFollowUpJob, getDueFollowUpJob, completeFollowUpJob, retryFollowUpJob, getPendingFollowUps, acknowledgeFollowUp, createAccount, verifyFamilyToken, storageMode: () => usePostgres ? 'postgres' : 'json'
 };
