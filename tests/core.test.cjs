@@ -35,11 +35,13 @@ test("normaliza emociones y descarta registros históricos inválidos", async ()
 test("un recordatorio vencido queda persistido hasta su confirmación", async () => {
   const reminder = await addReminder("test-user", "Tomar agua", new Date(Date.now() - 1000));
   const triggered = await checkReminders("test-user");
-  assert.equal(triggered.some(item => item.id === reminder.id), true);
-  assert.equal((await memory.getPendingNotifications("test-user")).some(item => item.id === reminder.id), true);
+  assert.equal(triggered.some(item => item.reminderId === reminder.id), true);
+  const pendingBeforeAck = await memory.getPendingNotifications("test-user");
+  const notification = pendingBeforeAck.find(item => item.reminderId === reminder.id);
+  assert.ok(notification);
   assert.equal((await memory.getReminders("test-user")).find(item => item.id === reminder.id).done, false);
-  assert.equal(await memory.acknowledgeNotification("test-user", reminder.id), true);
-  assert.equal((await memory.getPendingNotifications("test-user")).some(item => item.id === reminder.id), false);
+  assert.equal(await memory.acknowledgeNotification("test-user", notification.id), true);
+  assert.equal((await memory.getPendingNotifications("test-user")).some(item => item.id === notification.id), false);
   assert.equal((await memory.getReminders("test-user")).find(item => item.id === reminder.id).done, true);
 });
 
@@ -74,4 +76,32 @@ test("evita programar seguimientos emocionales duplicados mientras hay uno activ
   await scheduleFollowUp("follow-user-duplicate", { lastEmotion: "triste" });
   const profile = await memory.getProfile("follow-user-duplicate");
   assert.equal(profile.followUpJobs.length, 1);
+});
+
+
+test("reclama un recordatorio vencido una sola vez incluso con ciclos simultáneos", async () => {
+  const reminder = await addReminder("test-user-concurrent", "Tomar medicación", new Date(Date.now() - 1000));
+  const results = await Promise.all([
+    checkReminders("test-user-concurrent"),
+    checkReminders("test-user-concurrent"),
+    checkReminders("test-user-concurrent")
+  ]);
+  const claimed = results.flat();
+  assert.equal(claimed.filter(item => item.reminderId === reminder.id).length, 1);
+  const pending = await memory.getPendingNotifications("test-user-concurrent");
+  assert.equal(pending.filter(item => item.reminderId === reminder.id).length, 1);
+});
+
+test("los recordatorios diarios generan una notificación distinta en cada vencimiento", async () => {
+  const firstDue = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const reminder = await addReminder("test-user-daily", "Tomar agua", firstDue, "daily");
+  const first = await checkReminders("test-user-daily");
+  assert.equal(first.length, 1);
+  const stored = await memory.getReminders("test-user-daily");
+  const nextDue = new Date(stored.find(item => item.id === reminder.id).time);
+  const second = await checkReminders("test-user-daily", nextDue.getTime() + 1000);
+  assert.equal(second.length, 1);
+  assert.notEqual(first[0].id, second[0].id);
+  const pending = await memory.getPendingNotifications("test-user-daily");
+  assert.equal(pending.filter(item => item.reminderId === reminder.id).length, 2);
 });

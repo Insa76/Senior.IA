@@ -220,6 +220,45 @@ async function enqueuePendingNotification(userId, item) {
     profile.pendingNotifications = queue.slice(-50); return profile;
   });
 }
+
+// Reclama recordatorios vencidos y los encola en una sola actualización atómica del perfil.
+// En PostgreSQL, updateProfile utiliza SELECT FOR UPDATE para serializar ciclos concurrentes.
+async function claimDueReminders(userId, now = Date.now()) {
+  const triggered = [];
+  await updateProfile(userId, profile => {
+    const reminders = Array.isArray(profile.reminders) ? profile.reminders : [];
+    const queue = Array.isArray(profile.pendingNotifications) ? profile.pendingNotifications : [];
+    let changed = false;
+    for (const reminder of reminders) {
+      if (reminder.done || reminder.notified) continue;
+      const dueAt = new Date(reminder.time).getTime();
+      if (!Number.isFinite(dueAt) || dueAt > now) continue;
+      const notification = {
+        id: `${reminder.id}:${dueAt}`,
+        reminderId: reminder.id,
+        text: reminder.text,
+        time: reminder.time,
+        createdAt: new Date(now).toISOString()
+      };
+      if (!queue.some(entry => entry.id === notification.id)) queue.push(notification);
+      triggered.push(notification);
+      reminder.notified = true;
+      if (reminder.repeat === 'daily') {
+        const next = new Date(dueAt);
+        do { next.setDate(next.getDate() + 1); } while (next.getTime() <= now);
+        reminder.time = next.toISOString();
+        reminder.notified = false;
+      }
+      changed = true;
+    }
+    if (changed) {
+      profile.reminders = reminders;
+      profile.pendingNotifications = queue.slice(-50);
+    }
+    return profile;
+  });
+  return triggered;
+}
 async function getPendingNotifications(userId) {
   const queue = (await getProfile(userId)).pendingNotifications;
   return Array.isArray(queue) ? queue : [];
@@ -232,7 +271,9 @@ async function acknowledgeNotification(userId, notificationId) {
     profile.pendingNotifications = queue.filter(item => item.id !== notificationId);
     if (acknowledged) {
       const reminders = Array.isArray(profile.reminders) ? profile.reminders : [];
-      const reminder = reminders.find(item => item.id === notificationId);
+      const notification = queue.find(item => item.id === notificationId);
+      const reminderId = notification?.reminderId || notificationId;
+      const reminder = reminders.find(item => item.id === reminderId);
       if (reminder && reminder.repeat !== 'daily') reminder.done = true;
     }
     return profile;
@@ -352,5 +393,5 @@ module.exports = {
   saveReminder, getReminders, setReminders, saveMessage, getChat, getAllUserIds,
   savePushSubscription, getPushSubscriptions, removePushSubscription,
   normalizeEmotion, getValidHistory, enqueuePendingNotification, getPendingNotifications,
-  acknowledgeNotification, scheduleFollowUpJob, getDueFollowUpJob, completeFollowUpJob, retryFollowUpJob, getPendingFollowUps, acknowledgeFollowUp, createAccount, verifyFamilyToken, storageMode: () => usePostgres ? 'postgres' : 'json'
+  acknowledgeNotification, claimDueReminders, scheduleFollowUpJob, getDueFollowUpJob, completeFollowUpJob, retryFollowUpJob, getPendingFollowUps, acknowledgeFollowUp, createAccount, verifyFamilyToken, storageMode: () => usePostgres ? 'postgres' : 'json'
 };

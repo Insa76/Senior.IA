@@ -1,9 +1,9 @@
-const { getReminders, saveReminder, setReminders, enqueuePendingNotification } = require('./memory');
-const crypto = require('crypto');
+const { claimDueReminders } = require('./memory');
 
 async function addReminder(userId, text, time, repeat = null) {
   const date = new Date(time);
   if (Number.isNaN(date.getTime())) throw new Error('La fecha del recordatorio no es válida.');
+  const crypto = require('crypto');
   const reminder = {
     id: `${Date.now()}-${crypto.randomBytes(5).toString('hex')}`,
     userId,
@@ -13,31 +13,14 @@ async function addReminder(userId, text, time, repeat = null) {
     done: false,
     notified: false
   };
-  await saveReminder(userId, reminder);
+  const memory = require('./memory');
+  await memory.saveReminder(userId, reminder);
   return reminder;
 }
 
-async function checkReminders(userId) {
-  const reminders = await getReminders(userId);
-  const now = Date.now();
-  const triggered = [];
-  let changed = false;
-  for (const reminder of reminders) {
-    if (reminder.done || reminder.notified) continue;
-    const dueAt = new Date(reminder.time).getTime();
-    if (!Number.isFinite(dueAt) || dueAt > now) continue;
-    const notification = { id: reminder.id, text: reminder.text, time: reminder.time, createdAt: new Date().toISOString() };
-    await enqueuePendingNotification(userId, notification);
-    triggered.push(notification);
-    reminder.notified = true;
-    if (reminder.repeat === 'daily') {
-      const next = new Date(dueAt);
-      do { next.setDate(next.getDate() + 1); } while (next.getTime() <= now);
-      reminder.time = next.toISOString(); reminder.notified = false;
-    }
-    changed = true;
-  }
-  if (changed) await setReminders(userId, reminders);
-  return triggered;
+// La reclamación y la persistencia de cada notificación se realizan en una sola operación atómica.
+async function checkReminders(userId, now = Date.now()) {
+  return claimDueReminders(userId, now);
 }
+
 module.exports = { addReminder, checkReminders };
