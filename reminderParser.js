@@ -40,7 +40,9 @@ function cleanReminderText(text) {
     .replace(/^\s*(?:por favor[, ]*)?(?:recordame|recordarme|recuérdame|recordá|acordate|agendame|agendá|avisame)\b/i, '')
     .replace(/^\s*(?:que|por favor)\s+/i, '')
     .replace(/\b(?:en|dentro de)\s+(?:\d+|un|uno|una|dos|tres|cuatro|cinco|diez|quince|veinte|treinta|cuarenta|cincuenta|sesenta)\s+(?:minutos?|horas?)\b/ig, '')
-    .replace(/\b(?:hoy|mañana|pasado mañana)\b/ig, '')
+    .replace(/\b(?:de lunes a viernes|los días hábiles|los dias habiles)\b/ig, '')
+    .replace(/\b(?:todos los días|todos los dias|diariamente)\b/ig, '')
+    .replace(/\b(?:pasado mañana|hoy|mañana)\b/ig, '')
     .replace(/\b(?:a las?|para las?)\s*\d{1,2}(?:[:.]\d{1,2})?\s*(?:a\.?\s*m\.?|p\.?\s*m\.?)?/ig, '')
     .replace(/\b(?:de la mañana|de la tarde|de la noche)\b/ig, '')
     .replace(/^\s*(?:que|por favor)\s+/i, '')
@@ -54,12 +56,14 @@ function parseReminder(message, pending = null, now = new Date()) {
   const lower = raw.toLocaleLowerCase('es-AR');
   const hasIntent = INTENT.test(lower);
   const pendingValid = pending && Number(pending.expiresAt) > now.getTime();
-  const hasTimeExpression = /\b(?:en|dentro de)\s+(?:\d+|[a-záéíóú]+)\s+(?:minutos?|horas?)\b|\b(?:a las?|para las?)\s*\d{1,2}(?:[:.]\d{1,2})?|\b(?:hoy|mañana|pasado mañana)\b/i.test(lower);
+  const hasTimeExpression = /\b(?:en|dentro de)\s+(?:\d+|[a-záéíóú]+)\s+(?:minutos?|horas?)\b|\b(?:a las?|para las?)\s*\d{1,2}(?:[:.]\d{1,2})?|\b(?:hoy|mañana|pasado mañana)\b|\b(?:todos los días|todos los dias|diariamente|de lunes a viernes|los días hábiles|los dias habiles)\b/i.test(lower);
 
   if (!hasIntent && !(pendingValid && hasTimeExpression)) return null;
 
   const taskText = hasIntent ? cleanReminderText(raw) : String(pending.text || '').trim();
-  const repeat = /\btodos los días\b|\btodos los dias\b/i.test(lower) ? 'daily' : (pending?.repeat || null);
+  const repeat = /\b(?:de lunes a viernes|los días hábiles|los dias habiles)\b/i.test(lower)
+    ? 'weekdays'
+    : (/\b(?:todos los días|todos los dias|diariamente)\b/i.test(lower) ? 'daily' : (pending?.repeat || null));
 
   const relative = lower.match(/\b(?:en|dentro de)\s+(\d+|un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|quince|veinte|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa|cien)\s+(minutos?|horas?)\b/i);
   if (relative) {
@@ -113,4 +117,48 @@ function parseReminder(message, pending = null, now = new Date()) {
   return { matched: true, needsTime: true, text: taskText, repeat };
 }
 
-module.exports = { parseReminder, TIME_ZONE, zonedDateTimeToUtc };
+
+function normalizeWords(value) {
+  return String(value || '').toLocaleLowerCase('es-AR').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+function parseReminderManagement(message, reminders = [], now = new Date()) {
+  const raw = String(message || '').trim();
+  const normalized = normalizeWords(raw);
+  if (/^(?:que (?:cosas )?)?(?:tengo )?(?:pendiente|pendientes)\??$|^(?:mis )?recordatorios(?: pendientes)?\??$|^que recordatorios tengo\??$/.test(normalized)) {
+    return { action: 'list' };
+  }
+
+  const cancelMatch = raw.match(/\b(?:cancel[aá]|elimin[aá]|borr[aá])\s+(?:el\s+)?recordatorio(?:\s+(?:de|del|para)\s+(.+?))?[.!?]*$/i);
+  if (cancelMatch) {
+    const target = normalizeWords(cancelMatch[1] || '');
+    if (!target) return { action: 'need_target', operation: 'cancel' };
+    return matchReminderTarget(target, reminders, 'cancel');
+  }
+
+  const modifyMatch = raw.match(/\b(?:cambi[aá]|modific[aá]|pas[aá]|mov[eé])\s+(?:el\s+)?recordatorio\s+(?:de|del|para)\s+(.+?)\s+(?:para|a\s+las?)\s+(.+)$/i);
+  if (modifyMatch) {
+    const target = normalizeWords(modifyMatch[1]);
+    const timePhrase = modifyMatch[2].trim();
+    const normalizedTimePhrase = /^las?\s+/i.test(timePhrase) ? `a ${timePhrase}` : timePhrase;
+    const parsed = parseReminder(`Recordame ${normalizedTimePhrase}`, null, now);
+    if (!parsed?.time || parsed.invalid) return { action: 'invalid_time' };
+    return { ...matchReminderTarget(target, reminders, 'reschedule'), time: parsed.time };
+  }
+  return null;
+}
+
+function matchReminderTarget(target, reminders, action) {
+  const active = reminders.filter(item => !item.done);
+  const matches = active.filter(item => {
+    const text = normalizeWords(item.text);
+    return text.includes(target) || target.split(' ').filter(word => word.length > 2).every(word => text.includes(word));
+  });
+  if (!matches.length) return { action: 'not_found' };
+  if (matches.length > 1) return { action: 'ambiguous', matches: matches.map(item => ({ id: item.id, text: item.text })) };
+  return { action, reminder: matches[0] };
+}
+
+module.exports = { parseReminder, parseReminderManagement, TIME_ZONE, zonedDateTimeToUtc };

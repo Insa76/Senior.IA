@@ -205,6 +205,38 @@ async function saveReminder(userId, reminder) {
 }
 async function getReminders(userId) { const reminders = (await getProfile(userId)).reminders; return Array.isArray(reminders) ? reminders : []; }
 async function setReminders(userId, reminders) { return updateProfile(userId, profile => { profile.reminders = reminders; return profile; }); }
+async function cancelReminder(userId, reminderId) {
+  let cancelled = false;
+  await updateProfile(userId, profile => {
+    const reminders = Array.isArray(profile.reminders) ? profile.reminders : [];
+    const reminder = reminders.find(item => item.id === reminderId && !item.done);
+    if (reminder) { reminder.done = true; reminder.cancelledAt = new Date().toISOString(); cancelled = true; }
+    if (cancelled) {
+      profile.reminders = reminders;
+      profile.pendingNotifications = (profile.pendingNotifications || []).filter(item => item.reminderId !== reminderId);
+      if (profile.pendingReminder?.id === reminderId) profile.pendingReminder = null;
+    }
+    return profile;
+  });
+  return cancelled;
+}
+async function rescheduleReminder(userId, reminderId, time) {
+  const date = new Date(time);
+  if (!Number.isFinite(date.getTime())) throw new Error('La fecha del recordatorio no es válida.');
+  let updated = null;
+  await updateProfile(userId, profile => {
+    const reminders = Array.isArray(profile.reminders) ? profile.reminders : [];
+    const reminder = reminders.find(item => item.id === reminderId && !item.done);
+    if (reminder) {
+      reminder.time = date.toISOString(); reminder.notified = false; reminder.done = false;
+      updated = { ...reminder };
+      profile.reminders = reminders;
+      profile.pendingNotifications = (profile.pendingNotifications || []).filter(item => item.reminderId !== reminderId);
+    }
+    return profile;
+  });
+  return updated;
+}
 async function getAllUserIds() {
   await ensureInit();
   if (usePostgres) {
@@ -243,10 +275,13 @@ async function claimDueReminders(userId, now = Date.now()) {
       if (!queue.some(entry => entry.id === notification.id)) queue.push(notification);
       triggered.push(notification);
       reminder.notified = true;
-      if (reminder.repeat === 'daily') {
-        const next = new Date(dueAt);
-        do { next.setDate(next.getDate() + 1); } while (next.getTime() <= now);
-        reminder.time = next.toISOString();
+      if (reminder.repeat === 'daily' || reminder.repeat === 'weekdays') {
+        // Argentina usa UTC-3: desplazar a calendario local para evaluar correctamente los días hábiles.
+        const next = new Date(dueAt + 3 * 60 * 60 * 1000);
+        do {
+          next.setUTCDate(next.getUTCDate() + 1);
+        } while (next.getTime() <= now + 3 * 60 * 60 * 1000 || (reminder.repeat === 'weekdays' && [0, 6].includes(next.getUTCDay())));
+        reminder.time = new Date(next.getTime() - 3 * 60 * 60 * 1000).toISOString();
         reminder.notified = false;
       }
       changed = true;
@@ -274,7 +309,7 @@ async function acknowledgeNotification(userId, notificationId) {
       const notification = queue.find(item => item.id === notificationId);
       const reminderId = notification?.reminderId || notificationId;
       const reminder = reminders.find(item => item.id === reminderId);
-      if (reminder && reminder.repeat !== 'daily') reminder.done = true;
+      if (reminder && !['daily', 'weekdays'].includes(reminder.repeat)) reminder.done = true;
     }
     return profile;
   });
@@ -390,7 +425,7 @@ async function close() { if (pool) await pool.end(); }
 
 module.exports = {
   init, close, getProfile, saveProfile, extractUserInfo, saveEmotion,
-  saveReminder, getReminders, setReminders, saveMessage, getChat, getAllUserIds,
+  saveReminder, getReminders, setReminders, cancelReminder, rescheduleReminder, saveMessage, getChat, getAllUserIds,
   savePushSubscription, getPushSubscriptions, removePushSubscription,
   normalizeEmotion, getValidHistory, enqueuePendingNotification, getPendingNotifications,
   acknowledgeNotification, claimDueReminders, scheduleFollowUpJob, getDueFollowUpJob, completeFollowUpJob, retryFollowUpJob, getPendingFollowUps, acknowledgeFollowUp, createAccount, verifyFamilyToken, storageMode: () => usePostgres ? 'postgres' : 'json'

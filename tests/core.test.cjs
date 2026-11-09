@@ -105,3 +105,28 @@ test("los recordatorios diarios generan una notificación distinta en cada venci
   const pending = await memory.getPendingNotifications("test-user-daily");
   assert.equal(pending.filter(item => item.reminderId === reminder.id).length, 2);
 });
+
+
+test('permite cancelar y reprogramar recordatorios sin borrar el historial', async () => {
+  const reminder = await addReminder('test-user-management', 'Tomar agua', new Date(Date.now() + 3600000));
+  const changed = await memory.rescheduleReminder('test-user-management', reminder.id, new Date(Date.now() + 7200000));
+  assert.ok(changed);
+  assert.equal(new Date(changed.time).getTime() > Date.now() + 6500000, true);
+  assert.equal(await memory.cancelReminder('test-user-management', reminder.id), true);
+  const stored = (await memory.getReminders('test-user-management')).find(item => item.id === reminder.id);
+  assert.equal(stored.done, true);
+  assert.equal(await memory.cancelReminder('test-user-management', reminder.id), false);
+});
+
+test('los recordatorios de lunes a viernes saltan el fin de semana', async () => {
+  const friday = new Date('2026-11-06T12:00:00.000Z');
+  const reminder = await addReminder('test-user-weekdays', 'Caminar', new Date(friday.getTime() - 1000), 'weekdays');
+  await checkReminders('test-user-weekdays', friday.getTime());
+  const stored = (await memory.getReminders('test-user-weekdays')).find(item => item.id === reminder.id);
+  assert.equal(stored.repeat, 'weekdays');
+  assert.equal(stored.time, '2026-11-09T11:59:59.000Z');
+  const notification = (await memory.getPendingNotifications('test-user-weekdays'))[0];
+  assert.equal(await memory.acknowledgeNotification('test-user-weekdays', notification.id), true);
+  const afterAck = (await memory.getReminders('test-user-weekdays')).find(item => item.id === reminder.id);
+  assert.equal(afterAck.done, false);
+});

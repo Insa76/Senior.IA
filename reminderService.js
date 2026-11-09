@@ -9,7 +9,7 @@ async function addReminder(userId, text, time, repeat = null) {
     userId,
     text: String(text).trim().slice(0, 500),
     time: date.toISOString(),
-    repeat: repeat === 'daily' ? 'daily' : null,
+    repeat: ['daily', 'weekdays'].includes(repeat) ? repeat : null,
     done: false,
     notified: false
   };

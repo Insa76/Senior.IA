@@ -39,3 +39,28 @@ test('rechaza horas y minutos fuera de rango', () => {
   const result = parseReminder('Recordame hoy a las 25:75', null, now);
   assert.equal(result.invalid, true);
 });
+
+
+test('interpreta recurrencia de lunes a viernes y limpia la descripción', () => {
+  const result = parseReminder('Recordame caminar de lunes a viernes a las 18', null, now);
+  assert.equal(result.text, 'caminar');
+  assert.equal(result.repeat, 'weekdays');
+  assert.ok(result.time instanceof Date);
+});
+
+test('reconoce consultas de pendientes y cancelación por descripción', () => {
+  const { parseReminderManagement } = require('../reminderParser');
+  assert.equal(parseReminderManagement('¿Qué cosas tengo pendientes?', []).action, 'list');
+  const reminders = [{ id: 'r1', text: 'tomar agua', done: false }];
+  const result = parseReminderManagement('Cancelá el recordatorio del agua', reminders);
+  assert.equal(result.action, 'cancel');
+  assert.equal(result.reminder.id, 'r1');
+});
+
+test('interpreta modificación de recordatorio para una hora indicada', () => {
+  const { parseReminderManagement } = require('../reminderParser');
+  const reminders = [{ id: 'r1', text: 'tomar agua', done: false }];
+  const result = parseReminderManagement('Pasá el recordatorio del agua para las 10', reminders, now);
+  assert.equal(result.action, 'reschedule');
+  assert.equal(result.time.toISOString(), '2026-11-10T13:00:00.000Z');
+});

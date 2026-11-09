@@ -11,7 +11,7 @@ const sendAlert = require("./alertService");
 const { scheduleFollowUp, processDueFollowUps, getFollowUps, acknowledgeFollowUp } = require("./followUpService");
 const analyzeRisk = require("./alertLogic");
 const { addReminder, checkReminders } = require("./reminderService");
-const { parseReminder } = require("./reminderParser");
+const { parseReminder, parseReminderManagement } = require("./reminderParser");
 const webpush = require("web-push");
 
 const app = express();
@@ -244,6 +244,37 @@ app.post("/chat", async (req, res) => {
     profile = memory.extractUserInfo(message, profile);
     await memory.saveProfile(userId, profile);
 
+    const currentReminders = await memory.getReminders(userId);
+    const management = parseReminderManagement(message, currentReminders);
+    if (management) {
+      let managementReply;
+      if (management.action === "list") {
+        const active = currentReminders.filter(item => !item.done).sort((a, b) => new Date(a.time) - new Date(b.time));
+        managementReply = active.length
+          ? `Tenés estos recordatorios pendientes:\n${active.slice(0, 15).map(item => `• ${item.text}: ${new Date(item.time).toLocaleString("es-AR", { timeZone: "America/Argentina/Cordoba", dateStyle: "short", timeStyle: "short" })}${item.repeat === "daily" ? " (todos los días)" : item.repeat === "weekdays" ? " (de lunes a viernes)" : ""}`).join("\n")}`
+          : "No tenés recordatorios pendientes.";
+      } else if (management.action === "need_target") {
+        managementReply = "¿Cuál recordatorio querés cancelar? Decime qué dice, por ejemplo: «cancelá el recordatorio del agua».";
+      } else if (management.action === "not_found") {
+        managementReply = "No encontré un recordatorio pendiente con esa descripción. Si querés, preguntame «¿qué tengo pendiente?» y te muestro la lista.";
+      } else if (management.action === "ambiguous") {
+        managementReply = `Encontré más de uno. ¿Cuál querés modificar? ${management.matches.map(item => `«${item.text}»`).join(" o ")}.`;
+      } else if (management.action === "invalid_time") {
+        managementReply = "No pude interpretar el nuevo horario. Decime, por ejemplo, «pasá el recordatorio del agua para mañana a las 10».";
+      } else if (management.action === "cancel") {
+        const ok = await memory.cancelReminder(userId, management.reminder.id);
+        managementReply = ok ? `Listo, cancelé el recordatorio: ${management.reminder.text}.` : "No pude confirmar la cancelación. Probá nuevamente.";
+      } else if (management.action === "reschedule") {
+        const updated = await memory.rescheduleReminder(userId, management.reminder.id, management.time);
+        if (updated) {
+          const formatted = new Date(updated.time).toLocaleString("es-AR", { timeZone: "America/Argentina/Cordoba", dateStyle: "short", timeStyle: "short" });
+          managementReply = `Listo, cambié «${updated.text}» para el ${formatted}.`;
+        } else managementReply = "No pude confirmar el cambio del recordatorio.";
+      }
+      await memory.saveMessage(userId, "assistant", managementReply);
+      return res.json({ reply: managementReply, reminderManagement: management.action });
+    }
+
     const pendingReminder = profile.pendingReminder || null;
     const reminderRequest = parseReminder(message, pendingReminder);
     if (reminderRequest?.matched) {
@@ -268,7 +299,7 @@ app.post("/chat", async (req, res) => {
           dateStyle: "short",
           timeStyle: "short"
         });
-        reply = `Perfecto, quedó guardado: ${reminder.text}. Te voy a avisar el ${formatted}${reminder.repeat ? " y se repetirá todos los días" : ""}.`;
+        reply = `Perfecto, quedó guardado: ${reminder.text}. Te voy a avisar el ${formatted}${reminder.repeat === "daily" ? " y se repetirá todos los días" : reminder.repeat === "weekdays" ? " y se repetirá de lunes a viernes" : ""}.`;
       }
       await memory.saveMessage(userId, "assistant", reply);
       return res.json({ reply, reminder: true, scheduled: Boolean(reminderRequest.time && !reminderRequest.invalid) });
