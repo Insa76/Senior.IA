@@ -11,6 +11,7 @@ const sendAlert = require("./alertService");
 const { scheduleFollowUp, processDueFollowUps, getFollowUps, acknowledgeFollowUp } = require("./followUpService");
 const analyzeRisk = require("./alertLogic");
 const { addReminder, checkReminders } = require("./reminderService");
+const { parseReminder } = require("./reminderParser");
 const webpush = require("web-push");
 
 const app = express();
@@ -112,48 +113,9 @@ async function processBackgroundTasks() {
   }
 }
 
-function parseReminder(message) {
-  const lower = message.toLowerCase();
-  // Detecta pedidos explícitos de recordatorio sin confundir "recordás" (recordar en presente).
-  // La coincidencia por palabra completa evita interceptar preguntas como "¿qué recordás de mí?".
-  const hasReminderIntent = /(?<![\p{L}\p{N}_])(?:recordame|recordarme|recuérdame|recordá|acordate|poneme un recordatorio|creá un recordatorio|agendame)(?![\p{L}\p{N}_])/iu.test(lower);
-  if (!hasReminderIntent) return null;
 
-  const now = new Date();
-  let time = null;
-  let repeat = null;
 
-  const minutes = lower.match(/\b(?:en|dentro de) (\d{1,3}) minutos?\b/);
-  const hoursAhead = lower.match(/\b(?:en|dentro de) (\d{1,2}) horas?\b/);
-  const hour = lower.match(/\ba las (\d{1,2})(?::(\d{2}))?\b/);
 
-  if (minutes) {
-    const amount = Number(minutes[1]);
-    if (amount < 1 || amount > 10080) return { invalid: true };
-    time = new Date(now.getTime() + amount * 60000);
-  } else if (hoursAhead) {
-    const amount = Number(hoursAhead[1]);
-    if (amount < 1 || amount > 168) return { invalid: true };
-    time = new Date(now.getTime() + amount * 60 * 60000);
-  } else if (hour) {
-    const h = Number(hour[1]);
-    const m = Number(hour[2] || 0);
-    if (h > 23 || m > 59) return { invalid: true };
-    time = new Date(now);
-    if (lower.includes("mañana")) time.setDate(time.getDate() + 1);
-    time.setHours(h, m, 0, 0);
-    if (!lower.includes("mañana") && time <= now) time.setDate(time.getDate() + 1);
-  }
-
-  if (lower.includes("mañana") && !time) return { needsTime: true };
-
-  if (lower.includes("todos los días") || lower.includes("todos los dias")) {
-    repeat = "daily";
-  }
-
-  if (!time) return { needsTime: true };
-  return { time, repeat };
-}
 
 app.get("/health", async (req, res) => {
   res.json({
@@ -282,23 +244,34 @@ app.post("/chat", async (req, res) => {
     profile = memory.extractUserInfo(message, profile);
     await memory.saveProfile(userId, profile);
 
-    const reminderRequest = parseReminder(message);
-    if (reminderRequest) {
+    const pendingReminder = profile.pendingReminder || null;
+    const reminderRequest = parseReminder(message, pendingReminder);
+    if (reminderRequest?.matched) {
       let reply;
       if (reminderRequest.invalid) {
-        reply = "No pude interpretar ese horario. Decime, por ejemplo: «recordame en 10 minutos» o «recordame mañana a las 9».";
+        reply = "No pude interpretar ese horario. Podés decirme, por ejemplo, «en 10 minutos» o «hoy a las 20:55».";
       } else if (reminderRequest.needsTime) {
-        reply = "Claro. ¿A qué hora o dentro de cuánto tiempo querés que te lo recuerde?";
+        const pending = {
+          text: reminderRequest.text || pendingReminder?.text || "Recordatorio",
+          repeat: reminderRequest.repeat || null,
+          createdAt: pendingReminder?.createdAt || new Date().toISOString(),
+          expiresAt: Date.now() + 15 * 60 * 1000
+        };
+        await memory.saveProfile(userId, { pendingReminder: pending });
+        reply = "Claro. ¿Cuándo querés que te lo recuerde? Podés decirme «en dos minutos», «hoy a las 20:55» o «mañana a las 9».";
       } else {
-        await addReminder(userId, message, reminderRequest.time, reminderRequest.repeat);
+        const reminderText = reminderRequest.text || pendingReminder?.text || "Recordatorio";
+        const reminder = await addReminder(userId, reminderText, reminderRequest.time, reminderRequest.repeat);
+        await memory.saveProfile(userId, { pendingReminder: null });
         const formatted = reminderRequest.time.toLocaleString("es-AR", {
+          timeZone: "America/Argentina/Cordoba",
           dateStyle: "short",
           timeStyle: "short"
         });
-        reply = `Perfecto, lo agendé para ${formatted}${reminderRequest.repeat ? " y se repetirá todos los días" : ""}.`;
+        reply = `Perfecto, quedó guardado: ${reminder.text}. Te voy a avisar el ${formatted}${reminder.repeat ? " y se repetirá todos los días" : ""}.`;
       }
       await memory.saveMessage(userId, "assistant", reply);
-      return res.json({ reply, reminder: true });
+      return res.json({ reply, reminder: true, scheduled: Boolean(reminderRequest.time && !reminderRequest.invalid) });
     }
 
     const emotion = await detectEmotionAI(message);

@@ -4,7 +4,7 @@
   "main": "server.cjs",
   "scripts": {
     "start": "node server.cjs",
-    "check": "node --check server.cjs && node --check groqService.js && node --check memory.js && node --check reminderService.js && node --check alertLogic.js && node --check emotionService.js && node --check emergencyService.js && node --check followUpService.js && node --check alertService.js && node --check scripts/migrate-profiles.cjs",
+    "check": "node --check server.cjs && node --check groqService.js && node --check memory.js && node --check reminderService.js && node --check reminderParser.js && node --check alertLogic.js && node --check emotionService.js && node --check emergencyService.js && node --check followUpService.js && node --check alertService.js && node --check scripts/migrate-profiles.cjs",
     "test": "node --test",
     "migrate:profiles": "node scripts/migrate-profiles.cjs"
   },
