@@ -42,9 +42,11 @@ function cleanReminderText(text) {
     .replace(/\b(?:en|dentro de)\s+(?:\d+|un|uno|una|dos|tres|cuatro|cinco|diez|quince|veinte|treinta|cuarenta|cincuenta|sesenta)\s+(?:minutos?|horas?)\b/ig, '')
     .replace(/\b(?:de lunes a viernes|los días hábiles|los dias habiles)\b/ig, '')
     .replace(/\b(?:todos los días|todos los dias|diariamente)\b/ig, '')
+    // Eliminar primero el complemento horario; si se borra "mañana" antes,
+    // queda el residuo "de la" en la descripción del recordatorio.
+    .replace(/\bde la (?:mañana|tarde|noche)\b/ig, '')
     .replace(/\b(?:pasado mañana|hoy|mañana)\b/ig, '')
     .replace(/\b(?:a las?|para las?)\s*\d{1,2}(?:[:.]\d{1,2})?\s*(?:a\.?\s*m\.?|p\.?\s*m\.?)?/ig, '')
-    .replace(/\b(?:de la mañana|de la tarde|de la noche)\b/ig, '')
     .replace(/^\s*(?:que|por favor)\s+/i, '')
     .replace(/[,.!?;:]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -92,7 +94,7 @@ function parseReminder(message, pending = null, now = new Date()) {
     if (!meridiem && hour <= 12 && /\bde la mañana\b/i.test(lower) && hour === 12) hour = 0;
 
     const current = zonedParts(now);
-    const explicitTomorrow = /\bmañana\b/i.test(lower) && !/\bmañana\s+por\s+la\s+mañana\b/i.test(lower);
+    const explicitTomorrow = /\bmañana\b/i.test(lower) && !/\bde la mañana\b/i.test(lower) && !/\bmañana\s+por\s+la\s+mañana\b/i.test(lower);
     const explicitToday = /\bhoy\b/i.test(lower);
     const base = new Date(Date.UTC(current.year, current.month - 1, current.day + (explicitTomorrow ? 1 : 0)));
     let due = zonedDateTimeToUtc(base.getUTCFullYear(), base.getUTCMonth() + 1, base.getUTCDate(), hour, minute);
@@ -127,7 +129,13 @@ function normalizeWords(value) {
 function parseReminderManagement(message, reminders = [], now = new Date()) {
   const raw = String(message || '').trim();
   const normalized = normalizeWords(raw);
-  if (/^(?:que (?:cosas )?)?(?:tengo )?(?:pendiente|pendientes)\??$|^(?:mis )?recordatorios(?: pendientes)?\??$|^que recordatorios tengo\??$/.test(normalized)) {
+  if (
+    /^(?:(?:que|cuales)\s+)?(?:recordatorios|cosas)\s+(?:tengo\s+)?(?:pendientes?)\??$/.test(normalized) ||
+    /^que\s+recordatorios\s+tengo(?:\s+pendientes?)?\??$/.test(normalized) ||
+    /^(?:mis\s+)?recordatorios(?:\s+pendientes?)?\??$/.test(normalized) ||
+    /^(?:mostrame|muestrame|lista)\s+(?:mis\s+)?recordatorios\??$/.test(normalized) ||
+    /^que\s+(?:cosas\s+)?tengo\s+pendientes?\??$/.test(normalized)
+  ) {
     return { action: 'list' };
   }
 

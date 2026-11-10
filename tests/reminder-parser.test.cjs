@@ -64,3 +64,23 @@ test('interpreta modificación de recordatorio para una hora indicada', () => {
   assert.equal(result.action, 'reschedule');
   assert.equal(result.time.toISOString(), '2026-11-10T13:00:00.000Z');
 });
+
+
+test('reconoce la consulta literal de recordatorios pendientes', () => {
+  const { parseReminderManagement } = require('../reminderParser');
+  assert.equal(parseReminderManagement('¿Qué recordatorios tengo pendientes?', []).action, 'list');
+});
+
+test('no deja restos de "de la mañana" en el texto ni lo interpreta como fecha de mañana', () => {
+  const result = parseReminder('Recordame tomar agua todos los días a las 9 de la mañana', null, now);
+  assert.equal(result.text, 'tomar agua');
+  assert.equal(result.repeat, 'daily');
+  assert.equal(result.time.toISOString(), '2026-11-10T12:00:00.000Z');
+});
+
+test('acepta variantes naturales de consulta de recordatorios', () => {
+  const { parseReminderManagement } = require('../reminderParser');
+  for (const phrase of ['¿Qué recordatorios tengo pendientes?', '¿Qué cosas tengo pendientes?', 'Mostrame mis recordatorios', 'Mis recordatorios']) {
+    assert.equal(parseReminderManagement(phrase, []).action, 'list', phrase);
+  }
+});
